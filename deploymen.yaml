@@ -1,0 +1,123 @@
+######################
+#RBAC
+######################
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-sandbox
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: agent-sandbox
+rules:
+  - apiGroups:
+      - "*"
+    resources:
+      - "pods"
+      - "pods/exec"
+      - "pods/log"
+      - "pods/status"
+      - "events"
+      - "replicasets"
+      - "configmaps"
+      - "services"
+      - "services/status"
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: agent-sandbox
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: agent-sandbox
+subjects:
+  - kind: ServiceAccount
+    name: agent-sandbox
+    namespace: ${NS}
+---
+
+######################
+#Deployment
+######################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-sandbox
+  namespace: ${NS}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-sandbox
+  template:
+    metadata:
+      labels:
+        app: agent-sandbox
+    spec:
+      serviceAccountName: agent-sandbox
+      containers:
+        - env:
+            - name: SANDBOX_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+          image: ${IMAGE}
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: 10000
+              scheme: HTTP
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 3
+          name: agent-sandbox
+          readinessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: 10000
+              scheme: HTTP
+            periodSeconds: 5
+            successThreshold: 1
+            timeoutSeconds: 3
+          resources:
+            limits:
+              cpu: "1"
+              memory: 2000Mi
+            requests:
+              cpu: "500"
+              memory: 1000Mi
+---
+
+######################
+#Service
+######################
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-sandbox
+  namespace: ${NS}
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 10000
+  selector:
+    app: agent-sandbox
+  type: ClusterIP
+---
+
