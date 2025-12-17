@@ -2,11 +2,11 @@
   <h1 align="center">Agent-Sandbox</h1>
   <p align="center">Enterprise-grade cloud-native, high-performance, multi-session, multi-tenant, Kubernetes based, Code, Browser, Computer etc. runtime environment for AI Agents.</p>
 <picture>
-  <source srcset="docs/agent-sandbox.png" type="image/png">
-  <img alt="agent-sandbox" src="docs/agent-sandbox.png">
+  <source srcset="./docs/agent-sandbox.png" type="image/png">
+  <img alt="agent-sandbox" src="./docs/agent-sandbox.png">
 </picture>
 </div>
-
+<br/>
 Agent-sandbox is an enterprise-grade ai-first, cloud-native, high-performance runtime environment designed for AI Agents. It combines the Kubernetes
 with container isolation. Allows Agents to securely run untrusted LLM-generated Code, Browser use, Computer use, and
 Shell commands etc. with stateful, long-running, multi-session and multi-tenant.
