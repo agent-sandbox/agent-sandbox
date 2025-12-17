@@ -1,6 +1,6 @@
 <div align="center">
   <h1 align="center">Agent-Sandbox</h1>
-  <p align="center">Enterprise-grade Kubernetes based cloud-native high-performance, multi-session, multi-tenant, Code, Browser, Computer etc. runtime environment for AI Agents.</p>
+  <p align="center">Enterprise-grade Kubernetes based cloud-native high-performance, multi-session, multi-tenant. Code execution, Browser use, Computer use etc. runtime environment for AI Agents.</p>
 <picture>
   <source srcset="./docs/agent-sandbox.png" type="image/png">
   <img alt="agent-sandbox" src="./docs/agent-sandbox.png">
