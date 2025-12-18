@@ -5,6 +5,16 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: agent-sandbox
+  namespace: agent-sandbox
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: agent-sandbox-token
+  namespace: agent-sandbox
+  annotations:
+    kubernetes.io/service-account.name: agent-sandbox
+type: kubernetes.io/service-account-token
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -43,7 +53,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: agent-sandbox
-    namespace: ${NS}
+    namespace: agent-sandbox
 ---
 
 ######################
@@ -53,7 +63,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: agent-sandbox
-  namespace: ${NS}
+  namespace: agent-sandbox
 spec:
   replicas: 1
   selector:
@@ -67,12 +77,14 @@ spec:
       serviceAccountName: agent-sandbox
       containers:
         - env:
+            - name: KUBERNETES_MIN_VERSION
+              value: "1.24.4-tke.26"
             - name: SANDBOX_NAMESPACE
               valueFrom:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: metadata.namespace
-          image: ${IMAGE}
+          image: ghcr.io/agent-sandbox/agent-sandbox:dev-0.1
           imagePullPolicy: IfNotPresent
           livenessProbe:
             failureThreshold: 5
@@ -98,7 +110,7 @@ spec:
               cpu: "1"
               memory: 2000Mi
             requests:
-              cpu: "500"
+              cpu: "500m"
               memory: 1000Mi
 ---
 
@@ -109,7 +121,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: agent-sandbox
-  namespace: ${NS}
+  namespace: agent-sandbox
 spec:
   ports:
     - name: http

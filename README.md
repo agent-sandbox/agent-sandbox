@@ -23,6 +23,22 @@ Shell commands etc. with stateful, long-running, multi-session and multi-tenant.
 
 ### 1, Installation
 
+#### Execution
+```
+ kubectl apply -f deployment-no-build.yaml
+```
+
+#### Build from Source
+
+First, generate the k8s deployment file `deploy-tmp.yaml`
+```
+sh deploy.sh --namespace my-namespace --image my-image:tag
+```
+Next, copy `deploy-tmp.yaml` to the cluster's kubectl terminal to execute.
+ ```
+ kubectl apply -f deploy-tmp.yaml
+ ```
+
 
 ### 2, Usage
 #### Create a sandbox

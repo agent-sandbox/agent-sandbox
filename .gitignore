@@ -31,3 +31,5 @@ go.work.sum
 # Editor/IDE
  .idea/
 .idea/workspace.xml
+./deploy-tmp.yaml
+./agent-sandbox
