@@ -63,6 +63,5 @@ else
     sed -i "s/\${NS}/$ESCAPED_NS/g" deploy-tmp.yaml
     sed -i "s/\${IMAGE}/$ESCAPED_IMAGE/g" deploy-tmp.yaml
 fi
-
 #cat deploy-tmp.yaml
 #kubectl apply -f deploy-tmp.yaml
