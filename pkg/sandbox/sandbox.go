@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package handler
+package sandbox
 
 type Sandbox struct {
     // Set the CMD of the SandboxHandler, overriding any CMD of the container image.
@@ -35,11 +35,14 @@ type Sandbox struct {
     // Environment variables to set in the SandboxHandler.
     Env map[string]*string `json:"env,omitempty"`
 
-    // Maximum lifetime of the sandbox in minutes.
-    Timeout int `json:"timeout,omitempty" default:"300"` // default 300
+    // Maximum lifetime of the sandbox in minutes. timeout is reached apply to delete action
+    Timeout int `json:"timeout,omitempty" default:"300"` // default 60m
 
-    // The amount of time in seconds that a sandbox can be idle before being terminated.
-    IdleTimeout int `json:"idle_timeout,omitempty"` // default 600
+    // The amount of time in minutes that a sandbox can be idle before being terminated.
+    IdleTimeout int `json:"idle_timeout,omitempty"` // default 10m
+
+    // Policy to apply when the idle is reached. Options are 'delete' or 'scaledown'.
+    IdlePolicy string `json:"idle_policy,omitempty" default:"delete"` // default delete
 
     // Working directory of the sandbox.
     Workdir string `json:"workdir,omitempty"`
@@ -58,6 +61,9 @@ type Sandbox struct {
 
     // HTTP/2 encrypted ports
     Ports []int `json:"ports,omitempty"`
+
+    // Status of the sandbox. Options are 'creating', 'running', 'idle', 'deleting', 'error'.
+    Status string `json:"status,omitempty"`
 }
 
 var DefaultSandbox = &Sandbox{
@@ -65,12 +71,20 @@ var DefaultSandbox = &Sandbox{
     Memory:      "128Mi",
     CPULimit:    "1000m",
     MemoryLimit: "1024Mi",
-    Timeout:     300,
-    IdleTimeout: 600,
+    Timeout:     60,
+    IdleTimeout: 10,
     //Image:       "nginx:latest",
 }
 
 func (o *Sandbox) Make() {
+    // one day max
+    if o.Timeout >= 1440 {
+        o.Timeout = 1440
+    }
+    // one hour max
+    if o.IdleTimeout > 60 {
+        o.IdleTimeout = 60
+    }
     if o.Image == "" {
         switch o.Type {
         case "python":
@@ -103,8 +117,6 @@ metadata:
   annotations:
     sandbox-data:  |
         {{.RawData}}
-    lastRequestTime: ""
-    lastResponseTime: ""
   labels:
     sandbox: "{{.Sandbox.Name}}"
     owner: agent-sandbox

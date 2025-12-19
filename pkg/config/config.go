@@ -17,28 +17,28 @@
 package config
 
 import (
-	"log"
+    "log"
 
-	"github.com/kelseyhightower/envconfig"
+    "github.com/kelseyhightower/envconfig"
 )
 
 var Cfg *Config
 
 type Config struct {
-	APIVersion string `split_words:"true" default:"v1" required:"false"`
-	APIBaseURL string `split_words:"true" default:"" required:"false"`
-	ServerAddr string `split_words:"true" default:"0.0.0.0:10000" required:"false"`
+    APIVersion string `split_words:"true" default:"v1" required:"false"`
+    APIBaseURL string `split_words:"true" default:"" required:"false"`
+    ServerAddr string `split_words:"true" default:"0.0.0.0:10000" required:"false"`
 
-	// witch Kubernetes namespace to create sandboxes Replicaset&Pod in
-	SandboxNamespace string `split_words:"true" default:"default" required:"false"`
+    // witch Kubernetes namespace to create sandboxes Replicaset&Pod in
+    SandboxNamespace string `split_words:"true" default:"default" required:"false"`
 }
 
 func init() {
-	var cfg Config
-	if err := envconfig.Process("", &cfg); err != nil {
-		log.Fatal("Failed to process config: ", err)
-	}
+    var cfg Config
+    if err := envconfig.Process("", &cfg); err != nil {
+        log.Fatal("Failed to process config: ", err)
+    }
 
-	cfg.APIBaseURL = "/api/" + cfg.APIVersion
-	Cfg = &cfg
+    cfg.APIBaseURL = "/api/" + cfg.APIVersion
+    Cfg = &cfg
 }

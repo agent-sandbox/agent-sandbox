@@ -29,7 +29,4 @@ go.work.sum
 .env
 
 # Editor/IDE
- .idea/
-.idea/workspace.xml
-./deploy-tmp.yaml
-./agent-sandbox
+.idea/

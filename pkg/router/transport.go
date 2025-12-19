@@ -14,33 +14,29 @@
  * limitations under the License.
  */
 
-package handler
+package router
 
 import (
-    "encoding/json"
+    "net"
     "net/http"
+    "time"
 )
 
-type response struct {
-    Code  string      `json:"code"`
-    Data  interface{} `json:"data,omitempty"`
-    Error string      `json:"error,omitempty"`
-}
+func getTransport() *http.Transport {
+    transport := &http.Transport{
+        DialContext: (&net.Dialer{
+            Timeout:   5 * time.Second,
+            KeepAlive: 30 * time.Second,
+        }).DialContext,
 
-func Ok(w http.ResponseWriter, s interface{}) {
-    data := &response{
-        Code: "0",
-        Data: s,
-    }
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(data)
-}
+        TLSHandshakeTimeout: 5 * time.Second,
 
-func Err(w http.ResponseWriter, s string) {
-    data := &response{
-        Code:  "500",
-        Error: s,
+        ResponseHeaderTimeout: 300 * time.Second,
+
+        MaxIdleConns:        100,
+        MaxIdleConnsPerHost: 20,
+        IdleConnTimeout:     90 * time.Second,
     }
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(data)
+
+    return transport
 }

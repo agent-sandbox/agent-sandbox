@@ -14,33 +14,28 @@
  * limitations under the License.
  */
 
-package handler
+package scaler
 
 import (
-    "encoding/json"
-    "net/http"
+    "context"
+
+    "github.com/agent-sandbox/agent-sandbox/pkg/activator"
 )
 
-type response struct {
-    Code  string      `json:"code"`
-    Data  interface{} `json:"data,omitempty"`
-    Error string      `json:"error,omitempty"`
+type Scaler struct {
+    rootCtx   context.Context
+    activator *activator.Activator
 }
 
-func Ok(w http.ResponseWriter, s interface{}) {
-    data := &response{
-        Code: "0",
-        Data: s,
+func NewScaler(ctx context.Context) *Scaler {
+    a := activator.NewActivator(ctx)
+    scaler := &Scaler{
+        rootCtx:   ctx,
+        activator: a,
     }
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(data)
+    return scaler
 }
 
-func Err(w http.ResponseWriter, s string) {
-    data := &response{
-        Code:  "500",
-        Error: s,
-    }
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(data)
+func (s *Scaler) RunScaling() {
+
 }

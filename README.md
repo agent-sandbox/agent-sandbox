@@ -4,9 +4,8 @@
 <picture>
   <source srcset="./docs/agent-sandbox.png" type="image/png">
   <img alt="agent-sandbox" src="./docs/agent-sandbox.png">
-</picture>https://github.com/agent-sandbox/agent-sandbox/blob/main/README.md
+</picture>
 </div>
-<br/>
 Agent-sandbox is an enterprise-grade ai-first, cloud-native, high-performance runtime environment designed for AI Agents. It combines the Kubernetes
 with container isolation. Allows Agents to securely run untrusted LLM-generated Code, Browser use, Computer use, and
 Shell commands etc. with stateful, long-running, multi-session and multi-tenant.
@@ -22,24 +21,9 @@ Shell commands etc. with stateful, long-running, multi-session and multi-tenant.
 ## Quick Start
 
 ### 1, Installation
-
-#### Execution
 ```
  kubectl apply -f deployment-no-build.yaml
 ```
-
-#### Build from Source
-
-First, generate the k8s deployment file `deploy-tmp.yaml`
-```
-sh deploy.sh --namespace my-namespace --image my-image:tag
-```
-Next, copy `deploy-tmp.yaml` to the cluster's kubectl terminal to execute.
- ```
- kubectl apply -f deploy-tmp.yaml
- ```
-
-
 
 ### 2, Usage
 #### Create a sandbox

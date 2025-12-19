@@ -14,33 +14,16 @@
  * limitations under the License.
  */
 
-package handler
+package activator
 
 import (
-    "encoding/json"
-    "net/http"
+    "context"
+
+    "github.com/agent-sandbox/agent-sandbox/pkg/client"
+    "k8s.io/client-go/tools/record"
 )
 
-type response struct {
-    Code  string      `json:"code"`
-    Data  interface{} `json:"data,omitempty"`
-    Error string      `json:"error,omitempty"`
-}
-
-func Ok(w http.ResponseWriter, s interface{}) {
-    data := &response{
-        Code: "0",
-        Data: s,
-    }
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(data)
-}
-
-func Err(w http.ResponseWriter, s string) {
-    data := &response{
-        Code:  "500",
-        Error: s,
-    }
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(data)
+func getRecorder(ctx context.Context) record.EventRecorder {
+    r := client.CreateRecorderEventImpl(ctx, ComponentName)
+    return r
 }
