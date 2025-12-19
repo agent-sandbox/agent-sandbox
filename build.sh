@@ -1,6 +1,5 @@
 #!/bin/sh
 set -e
-# 解析命令行参数
 while [[ $# -gt 0 ]]; do
     case $1 in
         --ns|--namespace)

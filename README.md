@@ -21,9 +21,32 @@ Shell commands etc. with stateful, long-running, multi-session and multi-tenant.
 ## Quick Start
 
 ### 1, Installation
+You can install Agent-Sandbox by applying the provided [install.yaml](https://github.com/agent-sandbox/agent-sandbox/blob/main/install.yaml) file to your Kubernetes cluster. requires Kubernetes version 1.24 or higher.
 ```
- kubectl apply -f deployment-no-build.yaml
+kubectl create namespace agent-sandbox
+kubectl apply -nagent-sandbox -f install.yaml
 ```
+You can create an ingress or port-forward to access the Agent-Sandbox API server. Ingress like this:
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agent-sandbox
+  namespace: agent-sandbox
+spec:
+  ingressClassName: ingress-nginx
+  rules:
+  - host: agent-sandbox.your-host.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: agent-sandbox
+            port:
+              number: 80
+        path: /(.*)
+```
+Now you can access the Agent-Sandbox API server at `http://agent-sandbox.your-host.com`.
 
 ### 2, Usage
 #### Create a sandbox
