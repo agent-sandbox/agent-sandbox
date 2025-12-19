@@ -56,10 +56,10 @@ func New(rootCtx context.Context) *http.Server {
 func (a *ApiHttpHandler) regHandlers() {
     // Rest API for Sandbox management
     sbHeader := sandbox.NewHandler(a.rootCtx)
-    a.mux.HandleFunc(fmt.Sprintf("POST %s/sandboxes", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.CreateSandbox) })
-    a.mux.HandleFunc(fmt.Sprintf("GET %s/sandboxes", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.ListSandboxes) })
-    a.mux.HandleFunc(fmt.Sprintf("DELETE %s/sandboxes/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.DelSandbox) })
-    a.mux.HandleFunc(fmt.Sprintf("GET %s/sandboxes/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.GetSandbox) })
+    a.mux.HandleFunc(fmt.Sprintf("POST %s/sandbox", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.CreateSandbox) })
+    a.mux.HandleFunc(fmt.Sprintf("GET %s/sandbox", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.ListSandbox) })
+    a.mux.HandleFunc(fmt.Sprintf("DELETE %s/sandbox/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.DelSandbox) })
+    a.mux.HandleFunc(fmt.Sprintf("GET %s/sandbox/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.GetSandbox) })
 
     // SandboxHandler router, route calls to Sandbox container
     srHandler := router.NewSandboxRouter(a.rootCtx)

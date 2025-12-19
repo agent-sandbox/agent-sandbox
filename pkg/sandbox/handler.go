@@ -64,7 +64,7 @@ func (a *Handler) CreateSandbox(r *http.Request) (interface{}, error) {
     return fmt.Sprintf("Sandbox %s created successfully", sb.Name), nil
 }
 
-func (a *Handler) ListSandboxes(r *http.Request) (interface{}, error) {
+func (a *Handler) ListSandbox(r *http.Request) (interface{}, error) {
     sbs := a.controller.List()
     if sbs == nil {
         return "", fmt.Errorf("no sandboxes found")
