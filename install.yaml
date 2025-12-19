@@ -5,13 +5,11 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: agent-sandbox
-  namespace: ${NS}
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: agent-sandbox-token
-  namespace: ${NS}
   annotations:
     kubernetes.io/service-account.name: agent-sandbox
 type: kubernetes.io/service-account-token
@@ -62,7 +60,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: agent-sandbox
-  namespace: ${NS}
 spec:
   replicas: 1
   selector:
@@ -83,7 +80,7 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: metadata.namespace
-          image: ${IMAGE}
+          image: ghcr.io/agent-sandbox/agent-sandbox:dev-0.1
           imagePullPolicy: IfNotPresent
           livenessProbe:
             failureThreshold: 5
@@ -120,7 +117,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: agent-sandbox
-  namespace: ${NS}
 spec:
   ports:
     - name: http
