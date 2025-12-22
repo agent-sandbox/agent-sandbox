@@ -88,11 +88,11 @@ func (o *Sandbox) Make() {
     if o.Image == "" {
         switch o.Type {
         case "python":
-            o.Image = "python:3.9-slim"
+            o.Image = "python:3.11-slim"
         case "shell":
             o.Image = "alpine:latest"
         case "node":
-            o.Image = "node:16-alpine"
+            o.Image = "node:22-alpine"
         case "aio":
             o.Image = "ghcr.io/agent-infra/sandbox:latest"
         case "aiocn":

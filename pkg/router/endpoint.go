@@ -39,7 +39,7 @@ func acquireDest(ctx context.Context, name string) (*url.URL, error) {
         return nil, fmt.Errorf("sandbox pod IP not found")
     }
 
-    targetURL, _ := url.Parse("http://" + ip)
+    targetURL, _ := url.Parse(fmt.Sprintf("http://%s:%s", ip, "8080"))
 
     return targetURL, nil
 }

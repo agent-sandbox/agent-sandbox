@@ -34,7 +34,7 @@ type ApiHttpHandler struct {
 }
 
 func New(rootCtx context.Context) *http.Server {
-    mux := http.NewServeMux()
+    mux := http.DefaultServeMux
 
     ah := &ApiHttpHandler{
         rootCtx: rootCtx,
@@ -63,7 +63,7 @@ func (a *ApiHttpHandler) regHandlers() {
 
     // SandboxHandler router, route calls to Sandbox container
     srHandler := router.NewSandboxRouter(a.rootCtx)
-    a.mux.HandleFunc("/sandbox/{name}/*", srHandler.ServeHTTP)
+    a.mux.HandleFunc("/sandbox/{name}/{subpath...}", srHandler.ServeHTTP)
 
     a.mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
         fmt.Fprintf(w, "OK")

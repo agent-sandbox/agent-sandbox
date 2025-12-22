@@ -75,7 +75,7 @@ func (a *Handler) ListSandbox(r *http.Request) (interface{}, error) {
 
 func (a *Handler) GetSandbox(r *http.Request) (interface{}, error) {
     name := r.PathValue("name")
-    klog.V(2).Infof("Delete sandbox name=%s", name)
+    klog.V(2).Infof("Get sandbox name=%s", name)
     sb := &Sandbox{
         Name: name,
     }
