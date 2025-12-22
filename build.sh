@@ -43,24 +43,3 @@ echo "=> image: $IMAGE"
 docker build -t $IMAGE .
 docker push $IMAGE
 echo "=> build image success..."
-
-cp deployment.yaml deploy-tmp.yaml
-
-escape_sed() {
-    printf '%s\n' "$1" | sed 's/[&/\]/\\&/g'
-}
-
-ESCAPED_NS=$(escape_sed "$NS")
-ESCAPED_IMAGE=$(escape_sed "$IMAGE")
-
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    sed -i "" "s/\${NS}/$ESCAPED_NS/g" deploy-tmp.yaml
-    sed -i "" "s/\${IMAGE}/$ESCAPED_IMAGE/g" deploy-tmp.yaml
-else
-    # Linux
-    sed -i "s/\${NS}/$ESCAPED_NS/g" deploy-tmp.yaml
-    sed -i "s/\${IMAGE}/$ESCAPED_IMAGE/g" deploy-tmp.yaml
-fi
-#cat deploy-tmp.yaml
-#kubectl apply -f deploy-tmp.yaml
