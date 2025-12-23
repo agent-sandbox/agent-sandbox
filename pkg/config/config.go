@@ -31,6 +31,8 @@ type Config struct {
 
     // witch Kubernetes namespace to create sandboxes Replicaset&Pod in
     SandboxNamespace string `split_words:"true" default:"default" required:"false"`
+
+    SandboxTemplateFile string `split_words:"true" default:"" required:"false"`
 }
 
 func init() {

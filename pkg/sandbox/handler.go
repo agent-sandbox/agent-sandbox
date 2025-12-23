@@ -21,21 +21,32 @@ import (
     "encoding/json"
     "fmt"
     "net/http"
+    "sync"
 
     "k8s.io/klog/v2"
 )
 
+type ClientSessionCache struct {
+    // TODO session cleanup?
+    sessions sync.Map
+}
+
 type Handler struct {
-    rootCtx    context.Context
-    controller *Controller
+    rootCtx      context.Context
+    controller   *Controller
+    sessionCache *ClientSessionCache
 }
 
 func NewHandler(rootCtx context.Context) *Handler {
     c := NewController(rootCtx)
+    cache := &ClientSessionCache{
+        //sessions: make(map[string]*mcp.ClientSession),
+    }
 
     return &Handler{
-        rootCtx:    rootCtx,
-        controller: c,
+        rootCtx:      rootCtx,
+        controller:   c,
+        sessionCache: cache,
     }
 }
 
@@ -45,7 +56,7 @@ func (a *Handler) CreateSandbox(r *http.Request) (interface{}, error) {
     if err != nil {
         return "", fmt.Errorf("failed to decode request body: %v", err)
     }
-    sb.Make()
+    sb.Build()
 
     klog.V(2).Infof("Create sandbox opts %v", sb)
 
@@ -76,16 +87,13 @@ func (a *Handler) ListSandbox(r *http.Request) (interface{}, error) {
 func (a *Handler) GetSandbox(r *http.Request) (interface{}, error) {
     name := r.PathValue("name")
     klog.V(2).Infof("Get sandbox name=%s", name)
-    sb := &Sandbox{
-        Name: name,
-    }
 
-    sboGet := a.controller.Get(name)
+    sb := a.controller.Get(name)
     if sb == nil {
         return "", fmt.Errorf("sandbox %s not found", name)
     }
 
-    return sboGet, nil
+    return sb, nil
 }
 
 func (a *Handler) DelSandbox(r *http.Request) (interface{}, error) {

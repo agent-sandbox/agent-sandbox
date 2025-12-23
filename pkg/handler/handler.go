@@ -65,6 +65,8 @@ func (a *ApiHttpHandler) regHandlers() {
     srHandler := router.NewSandboxRouter(a.rootCtx)
     a.mux.HandleFunc("/sandbox/{name}/{subpath...}", srHandler.ServeHTTP)
 
+    a.mux.Handle("/mcp", sbHeader.McpSseHandler())
+
     a.mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
         fmt.Fprintf(w, "OK")
         return

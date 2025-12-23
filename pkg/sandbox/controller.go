@@ -119,13 +119,14 @@ func (s *Controller) Create(sb *Sandbox) error {
             return false, err
         }
         // Check if the ReplicaSet is ready
-        if rsCreated.Status.Replicas == rsCreated.Status.ReadyReplicas {
+        replicas := *rsCreated.Spec.Replicas
+        if replicas == rsCreated.Status.ReadyReplicas {
             klog.Infof("ReplicaSet %s in namespace %s is ready. Desired: %d, Ready: %d",
-                sb.Name, config.Cfg.SandboxNamespace, rsCreated.Status.Replicas, rsCreated.Status.ReadyReplicas)
+                sb.Name, config.Cfg.SandboxNamespace, replicas, rsCreated.Status.ReadyReplicas)
             return true, nil
         } else {
             klog.V(2).Infof("ReplicaSet %s in namespace %s is NOT ready. Desired: %d, Ready: %d\n",
-                sb.Name, config.Cfg.SandboxNamespace, rsCreated.Status.Replicas, rsCreated.Status.ReadyReplicas)
+                sb.Name, config.Cfg.SandboxNamespace, replicas, rsCreated.Status.ReadyReplicas)
             return false, nil
         }
     }); perr != nil {
@@ -136,7 +137,7 @@ func (s *Controller) Create(sb *Sandbox) error {
 }
 
 func (s *Controller) GetInstances(name string) []*v1core.Pod {
-    selector, _ := labels.Parse(fmt.Sprintf("sandbox=" + name))
+    selector, _ := labels.Parse(fmt.Sprintf("sandbox=%s", name))
     pods, err := podclient.Get(context.TODO()).Lister().List(selector)
     if err != nil {
         return nil

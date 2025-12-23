@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: {{.Sandbox.Name}}
+  namespace: {{.Namespace}}
+  annotations:
+    sandbox-data:  |
+      {{.RawData}}
+  labels:
+    sandbox: "{{.Sandbox.Name}}"
+    owner: agent-sandbox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      sandbox: "{{.Sandbox.Name}}"
+  template:
+    metadata:
+      labels:
+        sandbox: "{{.Sandbox.Name}}"
+        owner: agent-sandbox
+    spec:
+      tolerations:
+        - effect: NoSchedule
+          key: ymcas.sls/instance-type
+          operator: Equal
+          value: sls-node
+      nodeSelector:
+        ymcas.sls/instance-type: sls-node
+      containers:
+        - name: sandbox
+          image: {{.Sandbox.Image}}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: INSTANCE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: {{.Sandbox.CPU}}
+              memory: {{.Sandbox.Memory}}
+            limits:
+              cpu: {{.Sandbox.CPULimit}}
+              memory: {{.Sandbox.MemoryLimit}}

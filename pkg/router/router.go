@@ -53,11 +53,11 @@ func NewSandboxRouter(ctx context.Context) *SandboxRouter {
 func (s *SandboxRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     name := r.PathValue("name")
     fmt.Printf("DynamicProxyRouter ServeHTTP name=%s\n", name)
-    s.activator.RecordLastRequest(name)
+    s.activator.RecordLastEvent(activator.EventTypeLastRequest, name)
 
     prefixToStrip := "/sandbox/" + name
 
-    targetURL, err := acquireDest(s.rootCtx, name)
+    targetURL, err := AcquireDest(s.rootCtx, name)
     if err != nil {
         http.Error(w, fmt.Sprintf("failed to acquire destination ip for sandbox %s: %v", name, err), http.StatusBadGateway)
         return
@@ -76,7 +76,7 @@ func (s *SandboxRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     }
 
     proxy.ServeHTTP(w, r)
-    s.activator.RecordLastResponse(name)
+    s.activator.RecordLastEvent(activator.EventTypeLastResponse, name)
     fmt.Printf("DynamicProxyRouter ServeHTTP done name=%s\n", name)
     return
 }

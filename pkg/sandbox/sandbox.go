@@ -16,21 +16,48 @@
 
 package sandbox
 
+import (
+    "fmt"
+    "os"
+    "time"
+
+    "github.com/agent-sandbox/agent-sandbox/pkg/config"
+)
+
+var SandboxTemplate string
+
+func init() {
+    SandboxTemplate = defaultSandboxTemplate
+    if config.Cfg.SandboxTemplateFile != "" {
+        var err error
+        var val []byte
+        if val, err = os.ReadFile(config.Cfg.SandboxTemplateFile); err != nil {
+            panic(err)
+        }
+        SandboxTemplate = string(val)
+    }
+}
+
+type SandboxBase struct {
+
+    // Optionally give the sandbox a name. Unique within an app.
+    Name string `json:"name,omitempty" required:"false" jsonschema:"The unique name of Sandbox, you can leave it empty to auto generate or specify it yourself with contextual meaning when creating Sandbox. only contain lowercase letters numbers and '-', max length 50, e.g. 'sandbox-execute-code-1766483780'"`
+
+    // The type to run as the container for the sandbox when Image is not set. e.g. aio/python/shell/
+    Type string `json:"type,omitempty" jsonschema:"The type of sandbox runtime environment, aio/python/shell/node, default is aio"`
+}
+
 type Sandbox struct {
+    SandboxBase
+
     // Set the CMD of the SandboxHandler, overriding any CMD of the container image.
     Args []string `json:"args,omitempty"`
 
     // Associate the sandbox with an app. Required unless creating from a container.
-    App string `json:"app,omitempty"`
-
-    // Optionally give the sandbox a name. Unique within an app.
-    Name string `json:"name,omitempty" required:"true"`
+    App string `json:"app,omitempty" jsonschema:"App to for associate the sandbox with an app"`
 
     // The image to run as the container for the sandbox.
     Image string `json:"image,omitempty"`
-
-    // The type to run as the container for the sandbox when Image is not set. e.g. aio/python/shell/
-    Type string `json:"type,omitempty"`
 
     // Environment variables to set in the SandboxHandler.
     Env map[string]*string `json:"env,omitempty"`
@@ -73,10 +100,13 @@ var DefaultSandbox = &Sandbox{
     MemoryLimit: "1024Mi",
     Timeout:     60,
     IdleTimeout: 10,
-    //Image:       "nginx:latest",
 }
 
-func (o *Sandbox) Make() {
+func (o *Sandbox) Build() {
+    if o.Name == "" {
+        o.Name = fmt.Sprintf("sandbox-%d", time.Now().Unix())
+    }
+
     // one day max
     if o.Timeout >= 1440 {
         o.Timeout = 1440
@@ -85,6 +115,11 @@ func (o *Sandbox) Make() {
     if o.IdleTimeout > 60 {
         o.IdleTimeout = 60
     }
+
+    if o.Type == "" {
+        o.Type = "aio"
+    }
+
     if o.Image == "" {
         switch o.Type {
         case "python":
@@ -97,10 +132,9 @@ func (o *Sandbox) Make() {
             o.Image = "ghcr.io/agent-infra/sandbox:latest"
         case "aiocn":
             o.Image = "enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest"
-        default:
-            o.Image = "nginx:latest"
         }
     }
+
 }
 
 type SandboxKube struct {
@@ -109,7 +143,7 @@ type SandboxKube struct {
     Namespace string
 }
 
-const SandboxTemplate = `apiVersion: apps/v1
+const defaultSandboxTemplate = `apiVersion: apps/v1
 kind: ReplicaSet
 metadata:
   name: {{.Sandbox.Name}}

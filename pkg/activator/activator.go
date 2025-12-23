@@ -54,22 +54,15 @@ func NewActivator(ctx context.Context) *Activator {
     return a
 }
 
-func (a *Activator) RecordLastRequest(name string) {
+func (a *Activator) RecordLastEvent(eventType string, name string) {
     rs, err := rsclient.Get(a.rootCtx).Lister().ReplicaSets(config.Cfg.SandboxNamespace).Get(name)
     if err != nil {
-        klog.ErrorS(err, "Failed to record last request", "name", name)
+        klog.ErrorS(err, "Failed to record event ", "name", name)
         return
     }
-    a.recorder.Eventf(rs, corev1.EventTypeNormal, EventTypeLastRequest, "")
-}
-
-func (a *Activator) RecordLastResponse(name string) {
-    rs, err := rsclient.Get(a.rootCtx).Lister().ReplicaSets(config.Cfg.SandboxNamespace).Get(name)
-    if err != nil {
-        klog.ErrorS(err, "Failed to record last response", "name", name)
-        return
-    }
-    a.recorder.Eventf(rs, corev1.EventTypeNormal, EventTypeLastResponse, "")
+    annotations := make(map[string]string)
+    annotations["sandbox-data"] = rs.Annotations["sandbox-data"]
+    a.recorder.AnnotatedEventf(rs, annotations, corev1.EventTypeNormal, eventType, "")
 }
 
 // GetLastRequestTime gets the last request event for the given sandbox name.

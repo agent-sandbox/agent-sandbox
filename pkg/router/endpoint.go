@@ -21,16 +21,32 @@ import (
     "fmt"
     "math/rand"
     "net/url"
+    "time"
 
+    v1 "k8s.io/api/core/v1"
     "k8s.io/apimachinery/pkg/labels"
+    "k8s.io/apimachinery/pkg/util/wait"
     podclient "knative.dev/pkg/client/injection/kube/informers/core/v1/pod"
 )
 
-func acquireDest(ctx context.Context, name string) (*url.URL, error) {
+func AcquireDest(rootCtx context.Context, name string) (*url.URL, error) {
     selector, _ := labels.Parse(fmt.Sprintf("sandbox=" + name))
-    pods, err := podclient.Get(ctx).Lister().List(selector)
-    if err != nil || len(pods) == 0 {
-        return nil, fmt.Errorf("sandbox pods not found")
+
+    var pods []*v1.Pod
+    var err error
+
+    // Wait for pods to be ready avoid faster than rs creation and caching issue
+    if perr := wait.PollUntilContextTimeout(context.TODO(), 300*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
+        pods, err = podclient.Get(rootCtx).Lister().List(selector)
+        if err != nil {
+            return false, err
+        }
+        if len(pods) == 0 {
+            return false, nil
+        }
+        return true, nil
+    }); perr != nil {
+        return nil, fmt.Errorf("timeout waiting for get pods for sandbox %v error: %v", name, perr)
     }
 
     pod := pods[rand.Intn(len(pods))]
