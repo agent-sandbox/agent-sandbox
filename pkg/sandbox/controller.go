@@ -87,13 +87,14 @@ func (s *Controller) Create(sb *Sandbox) error {
         return fmt.Errorf("failed to get kube client, kubeClient is nil")
     }
 
+    sb.Make()
     raw, _ := json.Marshal(sb)
     tplData := SandboxKube{
         Sandbox:   sb,
         RawData:   string(raw),
         Namespace: config.Cfg.SandboxNamespace,
     }
-    tmpl, err := template.New("rs").Parse(SandboxTemplate)
+    tmpl, err := template.New("rs").Parse(SandboxDeployTemplate)
     if err != nil {
         return fmt.Errorf("parse template fail: %v", err)
     }

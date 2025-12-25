@@ -23,6 +23,7 @@ import (
     "net/http"
     "sync"
 
+    "github.com/agent-sandbox/agent-sandbox/pkg/activator"
     "k8s.io/klog/v2"
 )
 
@@ -35,9 +36,10 @@ type Handler struct {
     rootCtx      context.Context
     controller   *Controller
     sessionCache *ClientSessionCache
+    activator    *activator.Activator
 }
 
-func NewHandler(rootCtx context.Context) *Handler {
+func NewHandler(rootCtx context.Context, a *activator.Activator) *Handler {
     c := NewController(rootCtx)
     cache := &ClientSessionCache{
         //sessions: make(map[string]*mcp.ClientSession),
@@ -46,6 +48,7 @@ func NewHandler(rootCtx context.Context) *Handler {
     return &Handler{
         rootCtx:      rootCtx,
         controller:   c,
+        activator:    a,
         sessionCache: cache,
     }
 }
@@ -56,7 +59,7 @@ func (a *Handler) CreateSandbox(r *http.Request) (interface{}, error) {
     if err != nil {
         return "", fmt.Errorf("failed to decode request body: %v", err)
     }
-    sb.Build()
+    //sb.Build()
 
     klog.V(2).Infof("Create sandbox opts %v", sb)
 
@@ -86,6 +89,10 @@ func (a *Handler) ListSandbox(r *http.Request) (interface{}, error) {
 
 func (a *Handler) GetSandbox(r *http.Request) (interface{}, error) {
     name := r.PathValue("name")
+    if name == "" {
+        return nil, fmt.Errorf("sandbox name is required")
+    }
+
     klog.V(2).Infof("Get sandbox name=%s", name)
 
     sb := a.controller.Get(name)
@@ -98,6 +105,10 @@ func (a *Handler) GetSandbox(r *http.Request) (interface{}, error) {
 
 func (a *Handler) DelSandbox(r *http.Request) (interface{}, error) {
     name := r.PathValue("name")
+    if name == "" {
+        return nil, fmt.Errorf("sandbox name is required")
+    }
+
     klog.V(2).Infof("Delete sandbox name=%s", name)
 
     err := a.controller.Delete(name)

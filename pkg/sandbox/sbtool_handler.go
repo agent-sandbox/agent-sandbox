@@ -21,6 +21,7 @@ import (
     "encoding/json"
     "fmt"
 
+    "github.com/agent-sandbox/agent-sandbox/pkg/activator"
     "github.com/agent-sandbox/agent-sandbox/pkg/router"
     "github.com/modelcontextprotocol/go-sdk/mcp"
     "k8s.io/klog/v2"
@@ -31,7 +32,7 @@ type SandboxTool struct {
 
     ToolName string `json:"tool_name,omitempty" required:"true" jsonschema:"The name of the Tool to execute inside the Sandbox"`
 
-    Arguments interface{} `json:"arguments,omitempty" jsonschema:"The arguments or command of the Tool to execute inside the Sandbox"`
+    Arguments interface{} `json:"arguments,omitempty" jsonschema:"The arguments of the Tool to execute inside the Sandbox"`
 }
 
 func (a *Handler) executorHandler(ctx context.Context, req *mcp.CallToolRequest, tool *SandboxTool) (*mcp.CallToolResult, any, error) {
@@ -48,10 +49,14 @@ func (a *Handler) executorHandler(ctx context.Context, req *mcp.CallToolRequest,
         return nil, nil, fmt.Errorf("failed to acquire client session for sandbox %s: %v", tool.SandboxName, err)
     }
 
+    a.activator.RecordLastEvent(activator.EventTypeLastRequest, tool.SandboxName)
+
     result, err := session.CallTool(ctx, &mcp.CallToolParams{
         Name:      tool.ToolName,
         Arguments: tool.Arguments,
     })
+
+    a.activator.RecordLastEvent(activator.EventTypeLastResponse, tool.SandboxName)
 
     if err != nil {
         return nil, nil, fmt.Errorf("failed to call tool %s in sandbox %s: %v", tool.ToolName, tool.SandboxName, err)

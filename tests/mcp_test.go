@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package sandbox
+package tests_test
 
 //Test CreateRecorder
 import (

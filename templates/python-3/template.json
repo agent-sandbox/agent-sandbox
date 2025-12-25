@@ -1,0 +1,24 @@
+{
+  "name": "python3",
+  "displayName": "Python 3.12",
+  "categories": ["Python"],
+  "description": "A Python development environment with pip package manager and common development libraries.",
+  "longDescription": "Provides a complete development environment for Python applications. It includes Python runtime, pip package manager, and common development libraries. Ideal for developing web applications, data science projects, automation scripts, and machine learning applications with Python's rich ecosystem of packages and tools.",
+  "url": "https://github.com/python",
+  "icon": "https://avatars.githubusercontent.com/u/1525981?s=200&v=4",
+  "memory": 4096,
+  "ports": [
+    {
+      "name": "sandbox-api",
+      "target": 8080,
+      "protocol": "HTTP"
+    },
+    {
+      "name": "python-app",
+      "target": 8000,
+      "protocol": "tls"
+    }
+  ],
+  "enterprise": false,
+  "coming_soon": false
+}

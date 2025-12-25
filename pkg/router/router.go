@@ -36,9 +36,8 @@ type SandboxRouter struct {
     activator       *activator.Activator
 }
 
-func NewSandboxRouter(ctx context.Context) *SandboxRouter {
+func NewSandboxRouter(ctx context.Context, a *activator.Activator) *SandboxRouter {
     transport := getTransport()
-    a := activator.NewActivator(ctx)
 
     sr := &SandboxRouter{
         SharedTransport: transport,

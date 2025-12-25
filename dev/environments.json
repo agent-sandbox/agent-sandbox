@@ -1,0 +1,12 @@
+[
+  {
+    "name": "aio",
+    "image": "enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest",
+    "description": "providing a comprehensive environment combines Web Browser, Shell, File, and Code Server. You can use it when you need multi functionalities in one environment, e.g. browsing the web, running shell commands and execution code."
+  },
+  {
+    "name": "python",
+    "image": "enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest",
+    "description": "providing a complete development environment for Python applications. It includes Python runtime, pip package manager, and common development libraries. Ideal for developing web applications, data science projects, automation scripts, and machine learning applications with Python's rich ecosystem of packages and tools."
+  }
+]

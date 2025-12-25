@@ -1,0 +1,7 @@
+[
+  {
+    "name": "aio",
+    "image": "ghcr.io/agent-infra/sandbox:latest",
+    "description": "providing a comprehensive environment combines Web Browser, Shell, File, and Code Server. You can use it when you need multi functionalities in one environment, e.g. browsing the web, running shell commands and execution code."
+  }
+]

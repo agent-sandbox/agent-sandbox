@@ -22,6 +22,7 @@ import (
     "net/http"
     "time"
 
+    "github.com/agent-sandbox/agent-sandbox/pkg/activator"
     "github.com/agent-sandbox/agent-sandbox/pkg/config"
     "github.com/agent-sandbox/agent-sandbox/pkg/router"
     "github.com/agent-sandbox/agent-sandbox/pkg/sandbox"
@@ -53,21 +54,23 @@ func New(rootCtx context.Context) *http.Server {
     return server
 }
 
-func (a *ApiHttpHandler) regHandlers() {
+func (ahh *ApiHttpHandler) regHandlers() {
+    a := activator.NewActivator(ahh.rootCtx)
+
     // Rest API for Sandbox management
-    sbHeader := sandbox.NewHandler(a.rootCtx)
-    a.mux.HandleFunc(fmt.Sprintf("POST %s/sandbox", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.CreateSandbox) })
-    a.mux.HandleFunc(fmt.Sprintf("GET %s/sandbox", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.ListSandbox) })
-    a.mux.HandleFunc(fmt.Sprintf("DELETE %s/sandbox/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.DelSandbox) })
-    a.mux.HandleFunc(fmt.Sprintf("GET %s/sandbox/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.GetSandbox) })
+    sbHeader := sandbox.NewHandler(ahh.rootCtx, a)
+    ahh.mux.HandleFunc(fmt.Sprintf("POST %s/sandbox", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.CreateSandbox) })
+    ahh.mux.HandleFunc(fmt.Sprintf("GET %s/sandbox", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.ListSandbox) })
+    ahh.mux.HandleFunc(fmt.Sprintf("DELETE %s/sandbox/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.DelSandbox) })
+    ahh.mux.HandleFunc(fmt.Sprintf("GET %s/sandbox/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.GetSandbox) })
 
     // SandboxHandler router, route calls to Sandbox container
-    srHandler := router.NewSandboxRouter(a.rootCtx)
-    a.mux.HandleFunc("/sandbox/{name}/{subpath...}", srHandler.ServeHTTP)
+    srHandler := router.NewSandboxRouter(ahh.rootCtx, a)
+    ahh.mux.HandleFunc("/sandbox/{name}/{subpath...}", srHandler.ServeHTTP)
 
-    a.mux.Handle("/mcp", sbHeader.McpSseHandler())
+    ahh.mux.Handle("/mcp", sbHeader.McpSseHandler())
 
-    a.mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+    ahh.mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
         fmt.Fprintf(w, "OK")
         return
     })

@@ -24,27 +24,27 @@ import (
     "github.com/agent-sandbox/agent-sandbox/pkg/config"
 )
 
-var SandboxTemplate string
+var SandboxDeployTemplate string
 
 func init() {
-    SandboxTemplate = defaultSandboxTemplate
+    SandboxDeployTemplate = defaultSandboxTemplate
     if config.Cfg.SandboxTemplateFile != "" {
         var err error
         var val []byte
         if val, err = os.ReadFile(config.Cfg.SandboxTemplateFile); err != nil {
             panic(err)
         }
-        SandboxTemplate = string(val)
+        SandboxDeployTemplate = string(val)
     }
 }
 
 type SandboxBase struct {
 
     // Optionally give the sandbox a name. Unique within an app.
-    Name string `json:"name,omitempty" required:"false" jsonschema:"The unique name of Sandbox, you can leave it empty to auto generate or specify it yourself with contextual meaning when creating Sandbox. only contain lowercase letters numbers and '-', max length 50, e.g. 'sandbox-execute-code-1766483780'"`
+    Name string `json:"name,omitempty" required:"false" jsonschema:"The unique name of Sandbox."`
 
     // The type to run as the container for the sandbox when Image is not set. e.g. aio/python/shell/
-    Type string `json:"type,omitempty" jsonschema:"The type of sandbox runtime environment, aio/python/shell/node, default is aio"`
+    Environment string `json:"environment,omitempty" jsonschema:"The sandbox Environment name."`
 }
 
 type Sandbox struct {
@@ -102,11 +102,7 @@ var DefaultSandbox = &Sandbox{
     IdleTimeout: 10,
 }
 
-func (o *Sandbox) Build() {
-    if o.Name == "" {
-        o.Name = fmt.Sprintf("sandbox-%d", time.Now().Unix())
-    }
-
+func (o *Sandbox) Make() {
     // one day max
     if o.Timeout >= 1440 {
         o.Timeout = 1440
@@ -116,23 +112,21 @@ func (o *Sandbox) Build() {
         o.IdleTimeout = 60
     }
 
-    if o.Type == "" {
-        o.Type = "aio"
+    if o.Environment == "" && o.Image == "" {
+        o.Image = config.Cfg.SandboxDefaultImage
+        o.Environment = config.Cfg.SandboxDefaultEnvironment
     }
 
-    if o.Image == "" {
-        switch o.Type {
-        case "python":
-            o.Image = "python:3.11-slim"
-        case "shell":
-            o.Image = "alpine:latest"
-        case "node":
-            o.Image = "node:22-alpine"
-        case "aio":
-            o.Image = "ghcr.io/agent-infra/sandbox:latest"
-        case "aiocn":
-            o.Image = "enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest"
-        }
+    if o.Environment != "" && o.Image == "" {
+        o.Image = config.GetEnvironmentByName(o.Environment).Image
+    }
+
+    if o.Environment == "" && o.Image != "" {
+        o.Environment = "custom"
+    }
+
+    if o.Name == "" {
+        o.Name = fmt.Sprintf("sandbox-%s-%d", o.Environment, time.Now().Unix())
     }
 
 }

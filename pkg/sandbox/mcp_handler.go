@@ -22,6 +22,8 @@ import (
     "fmt"
     "net/http"
 
+    "github.com/agent-sandbox/agent-sandbox/pkg/config"
+    "github.com/google/jsonschema-go/jsonschema"
     "github.com/modelcontextprotocol/go-sdk/mcp"
     "k8s.io/klog/v2"
 )
@@ -36,9 +38,18 @@ func (a *Handler) McpSseHandler() *mcp.StreamableHTTPHandler {
     server.AddReceivingMiddleware(createLoggingMiddleware())
 
     // Add the tools.
+    environmentsDesc := config.GetEnvironmentsForMCPTools()
+    inputSchema := &jsonschema.Schema{
+        Type: "object",
+        Properties: map[string]*jsonschema.Schema{
+            "name":        {Type: "string", Description: "The name of the Sandbox to create. You can leave it empty to auto generate or specify it yourself with contextual meaning. only contain lowercase letters numbers and '-', max length 50, add timestamp suffix to avoid name conflict, e.g. 'sandbox-execute-code-1766483780."},
+            "environment": {Type: "string", Description: "The environment to use for the Sandbox. Must be one of the predefined environments. Available environments:\n" + environmentsDesc},
+        },
+    }
     mcp.AddTool(server, &mcp.Tool{
         Name:        "createSandbox",
-        Description: "Create a new Sandbox for execution python code, browser use, etc. Return Tools schema of Sandbox  for further use by call sandboxExecutor Tool.",
+        Description: "Create a new Sandbox for execution python or javascript code, browser use, etc. Return Tools schema of Sandbox  for further use by call sandboxExecutor Tool.",
+        InputSchema: inputSchema,
     }, a.CreateSandboxTool)
 
     mcp.AddTool(server, &mcp.Tool{
@@ -48,7 +59,7 @@ func (a *Handler) McpSseHandler() *mcp.StreamableHTTPHandler {
 
     mcp.AddTool(server, &mcp.Tool{
         Name:        "deleteSandbox",
-        Description: "Delete a Sandbox by name",
+        Description: "Delete a Sandbox by name. Best practice to delete the Sandbox after all tasks are done to free resources.",
     }, a.DelSandboxTool)
 
     mcp.AddTool(server, &mcp.Tool{
@@ -98,6 +109,10 @@ func (a *Handler) CreateSandboxTool(ctx context.Context, req *mcp.CallToolReques
 }
 
 func (a *Handler) GetSandboxTool(ctx context.Context, req *mcp.CallToolRequest, sandbox *SandboxBase) (*mcp.CallToolResult, any, error) {
+    if sandbox.Name == "" {
+        return nil, nil, fmt.Errorf("sandbox name is required")
+    }
+
     klog.V(2).Infof("Get sandbox tool by name=%s", sandbox.Name)
 
     sb := a.controller.Get(sandbox.Name)
@@ -125,6 +140,10 @@ func (a *Handler) GetSandboxTool(ctx context.Context, req *mcp.CallToolRequest, 
 }
 
 func (a *Handler) DelSandboxTool(ctx context.Context, req *mcp.CallToolRequest, sandbox *SandboxBase) (*mcp.CallToolResult, any, error) {
+    if sandbox.Name == "" {
+        return nil, nil, fmt.Errorf("sandbox name is required")
+    }
+
     klog.V(2).Infof("Delete sandbox tool by name=%s", sandbox.Name)
 
     err := a.controller.Delete(sandbox.Name)
