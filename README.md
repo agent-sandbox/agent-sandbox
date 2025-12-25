@@ -116,7 +116,7 @@ curl --location '/api/v1/sandbox' \
 #### II, Access to Sandbox
 `/sandbox/{sandbox_name}` endpoint to get the access of the sandbox, including the connection details such as URL, WebSocket URL, VNC URL, or other relevant information based on the sandbox type.
 
-Now you can access to the previously created [aio](https://github.com/agent-infra/sandbox) sandbox using `/sandbox/sandbox-aio-01`.
+Now you can access to the previously created **sandbox-aio-01** sandbox using `/sandbox/sandbox-aio-01`.
 
 You will see:  
 ![aio-demo.jpg](docs/aio-demo.jpg)
