@@ -110,7 +110,7 @@ You can create a new sandbox by sending a POST request to the `/api/v1/sandbox` 
 ```shell
 curl --location '/api/v1/sandbox' \
 --header 'Content-Type: application/json' \
---data '{"name":"sandbox-aio-01","type":"aio"}'
+--data '{"name":"sandbox-01"}'
 ```
 
 #### II, Access to Sandbox
