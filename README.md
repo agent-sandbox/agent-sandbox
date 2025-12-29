@@ -1,16 +1,22 @@
 <div align="center">
-  <h1 align="center">Agent-Sandbox</h1>
+  <picture >
+  <source srcset="./docs/agent-sandbox.png" type="image/png">
+  <img alt="agent-sandbox" src="./docs/agent-sandbox.png" width="260px">
+  </picture>
+
   <p align="center"><b> Agent-Sandbox is an open-sourced <a href="https://docs.blaxel.ai/Sandboxes/Overview">Blaxel Sandbox</a> or <a href="https://e2b.dev/">E2B</a> like solution! </b></p>
   <p align="center">Agent-Sandbox is an enterprise-grade ai-first, cloud-native, high-performance runtime environment designed for AI Agents. It combines the Kubernetes
 with container isolation. Allows Agents to securely run untrusted LLM-generated Code, Browser use, Computer use, and
 Shell commands etc. with stateful, long-running, multi-session and multi-tenant.</p>
-<picture>
-  <source srcset="./docs/agent-sandbox.png" type="image/png">
-  <img alt="agent-sandbox" src="./docs/agent-sandbox.png">
+</div>
+
+<div align="center">
+<picture >
+  <img alt="agent-sandbox" src="https://github.com/user-attachments/assets/00c80583-8372-42cb-8cf0-8ae9e83f1454">
 </picture>
 </div>
 
-
+---
 
 # Why Agent-Sandbox?
 
@@ -18,12 +24,13 @@ When we are developing AI Agents, one of the critical challenges is providing an
 
 Sandbox must be isolated on a **Per-Agent** even **Per-User** basis to ensure security and prevent interference **between different conversation or task**. Additionally, the sandbox environment should support state persistence, allowing agents to maintain context and data across multiple interactions or multi agents etc.
 
-So, **Multi-Session and Multi-Tenant** is very critical,  Each sandbox is isolated on a per-agent or per-user basis, ensuring security and preventing interference between different conversations or tasks.
+Therefore, **Multi-Session and Multi-Tenant** is very critical,  Each sandbox is isolated on a per-agent or per-user basis, ensuring security and preventing interference between different conversations or tasks.
 
 I found [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) leverages [AIO Sandbox](https://github.com/agent-infra/sandbox) and Kubernetes to provide a similar solution. But it seems not friendly for AI Agents to manage the sandbox lifecycle and not friendly for commonly users to use it, because it faces to Kubernetes directly.
 
 So, We decide created this **Agent-Sandbox** project, which provides a RESTful API and MCP(Model Context Protocol) server to manage the sandbox lifecycle easily. It abstracts the complexity of Kubernetes and provides a simple interface for AI Agents and users to create, access, and delete sandboxes as needed. And we refer to some design ideas from [Blaxel Sandbox](https://docs.blaxel.ai/Sandboxes/Overview) and [E2B](https://e2b.dev/) provide similar features like lifecycle management and API design. Making it more suitable for AI Agents to use, but is opensource and self-hosted.
 
+**Architecture**
 ```mermaid
 flowchart TD
     A1([Agent A]):::agent -->|Execute Code| ASB
@@ -93,43 +100,155 @@ A[Create Sandbox] -->|mcp ro restful api| B(Access Sandbox)-->|mcp or timeout or
 ```
 
 
-### 2.1, Agent-Sandbox MCP Server
+### 2.1, Use Agent-Sandbox MCP Server
 You can manage sandboxes using the Model Context Protocol (MCP) with your AI Agents. The MCP server allows Agents to create, access, and delete sandboxes automatically.
 
 MCP Server Address: `http://agent-sandbox.your-host.com/mcp`. Now support SSE(Streamable-http).
 
 #### MCP Demos:
 
+##### 1, Code Execution
+
+Agents automatically create a sandbox when code needs to be executed and delete it when execution completes, ensuring isolated and secure code runs.
+
+[code execution](https://github.com/user-attachments/assets/d6ee410f-e12c-4c40-9dcc-f16b3b1abade)
+
+
+##### 2, Browser Use
+
+Agents automatically create a sandbox when website access is needed and delete it when the task is finished, providing isolated browser sessions for web interactions.
+
+[browser use](https://github.com/user-attachments/assets/e75daeb0-2bce-4144-9c2e-9c7979c21a05)
+
+
+This MCP integration enables agents to manage sandbox resources without manual intervention, supporting multi-session and multi-tenant operations with automatic cleanup.
+
 ---
 
-### 2.2, RESTful API
+### 2.2, Use RESTful API
 You can also manage sandboxes manually using the RESTful API provided by Agent-Sandbox.
 
 #### I, Create a Sandbox
-You can create a new sandbox by sending a POST request to the `/api/v1/sandbox` endpoint with the desired configuration. For example, to create an `aio` type sandbox and name it `sandbox-aio-01`, you can use the following curl command or programmatically call the API:
+You can create a new sandbox by sending a POST request to the `/api/v1/sandbox` endpoint with the desired configuration. For example, to create an `aio` type sandbox and name it `sandbox-01`, you can use the following curl command or programmatically call the API:
+
+<table>
+<tr>
+<td valign="top">
+
+**Shell**
 ```shell
 curl --location '/api/v1/sandbox' \
 --header 'Content-Type: application/json' \
 --data '{"name":"sandbox-01"}'
 ```
 
+</td>
+<td>
+
+**Python**
+```python
+import requests
+import json
+
+url = "/api/v1/sandbox"
+
+payload = json.dumps({
+  "name": "sandbox-01"
+})
+headers = {
+  'Content-Type': 'application/json'
+}
+
+response = requests.request("POST", url, headers=headers, data=payload)
+
+print(response.text)
+```
+</td>
+</tr>
+</table>
+
+**Result**
+```json
+{
+    "code": "0",
+    "data": "Sandbox sandbox-01 created successfully"
+}
+```
+
 #### II, Access to Sandbox
 `/sandbox/{sandbox_name}` endpoint to get the access of the sandbox, including the connection details such as URL, WebSocket URL, VNC URL, or other relevant information based on the sandbox type.
 
-Now you can access to the previously created **sandbox-aio-01** sandbox using `/sandbox/sandbox-aio-01`.
+Now you can access to the previously created **sandbox-01** sandbox using `/sandbox/sandbox-01`.
 
-You will see:  
+**You will see:**
 ![aio-demo.jpg](docs/aio-demo.jpg)
 
+**Use agent sandbox SDK access this sandbox:**
+```python
+from agent_sandbox import Sandbox
 
-And this created Sandbox's MCP Server address is: `sandbox/sandbox-aio-01/mcp`. you can use this MCP Server with your AI Agent to access this sandbox.
+# Initialize client
+client = Sandbox(base_url="http://agent-sandbox.your-host.com/sandbox/sandbox-01")
+home_dir = client.sandbox.get_context().home_dir
 
-#### III, Delete a Sandbox
-You can delete a sandbox by sending a DELETE request to the `/api/v1/sandbox/{sandbox_name}` endpoint. For example, to delete the `sandbox-aio-01` sandbox, you can use the following curl command or programmatically call the API:
-```shell
-curl --location --request DELETE '/api/v1/sandbox/sandbox-aio-01'
+# Execute shell commands
+result = client.shell.exec_command(command="ls -la")
+print(result.data.output)
+
+# File operations
+content = client.file.read_file(file=f"{home_dir}/.bashrc")
+print(content.data.content)
+
+# Browser automation
+screenshot = client.browser.screenshot()
 ```
 
+And this created Sandbox's MCP Server address is: `/sandbox/sandbox-01/mcp`. you can use this MCP Server with your AI Agent to access this sandbox.
+
+For more usage, please refer to: https://github.com/agent-infra/sandbox
+
+#### III, Delete a Sandbox
+You can delete a sandbox by sending a DELETE request to the `/api/v1/sandbox/{sandbox_name}` endpoint. For example, to delete the `sandbox-01` sandbox, you can use the following curl command or programmatically call the API:
+
+
+<table>
+<tr>
+<td valign="top">
+
+**Shell**
+```shell
+curl --location --request DELETE '/api/v1/sandbox/sandbox-01'
+```
+
+</td>
+<td>
+
+**Python**
+```python
+import requests
+
+url = "/api/v1/sandbox/sandbox-01"
+
+headers = {
+  'Content-Type': 'application/json'
+}
+
+response = requests.request("DELETE", url, headers=headers)
+
+print(response.text)
+```
+</td>
+</tr>
+</table>
+
+**Result:**
+
+```json
+{
+    "code": "0",
+    "data": "Sandbox sandbox-01 deleted successfully"
+}
+```
 
 # License
 
