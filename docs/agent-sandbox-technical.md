@@ -1,3 +1,25 @@
+---
+verified-commit: c90dab4
+verified-date: 2026-04-06
+key-files:
+  - path: pkg/config/config.go
+    symbols: [Config, Template, GetTemplateByName, CheckConfigmap, ShouldLoadTemplates, WatchConfigMap]
+  - path: pkg/sandbox/sandbox.go
+    symbols: [Sandbox, Make]
+  - path: pkg/sandbox/controller.go
+    symbols: [Controller, Create, GetSandbox, StreamContainerLogs, SandboxMetrics, ExecCommandInPod, DetectShell, StreamSandboxTerminal]
+  - path: pkg/sandbox/pool_manager.go
+    symbols: [PoolManager, StartPoolSyncing, AcquirePoolReplicaSet, adaptReplicasetToSandbox, replenishPoolAsync]
+  - path: pkg/handler/handlers.go
+    symbols: [Handler, StreamSandboxTerminalWS, ExecuteSandboxTerminal, DetectSandboxShell, StreamSandboxTrafficWS]
+  - path: pkg/router/router.go
+    symbols: [SandboxRouter]
+  - path: pkg/scaler/autoscaler.go
+    symbols: [Scaler, ScalingDownOfTimeout]
+  - path: ui/src/pages/TemplatesConfigPage.tsx
+    symbols: [TemplatesConfigPage, toSaveTemplatesPayload]
+---
+
 # Agent Sandbox - Technical Documentation
 
 ## Introduction
@@ -69,6 +91,8 @@ Templates are defined in `config/templates.json` and loaded into a Kubernetes Co
 | `type` | string | no | `""` (static) or `"dynamic"` — see Dynamic Templates below |
 | `pattern` | string | no | Regexp with named groups `name` and `version`; required when `type=dynamic` |
 | `args` | `[]string` | no | Container `args` passed to the pod (overrides image default CMD args) |
+| `envVars` | `map[string]string` | no | Template-level env vars injected into all sandboxes using this template; sandbox-supplied `envVars` take precedence |
+| `shell` | string | no | Shell path used for the WebSocket terminal (e.g. `/bin/bash`). When set, the terminal uses this shell directly instead of the auto-detect fallback |
 | `noStartupProbe` | bool | no | Disable the TCP startup probe (useful for images that do not listen on a port) |
 | `metadata` | `map[string]string` | no | Arbitrary key/value — special keys: `runtimeClassName`, `data_vol`, `config_vol` |
 | `resources.cpu` | string | no | CPU request (e.g. `"0.2"`) |
@@ -134,6 +158,7 @@ Both config assets are stored in the same ConfigMap `agent-sandbox-templates`:
 │  2. Sandbox.Make()                                                               │
 │     ├─ Resolve template by name (or image fallback → "custom")                  │
 │     ├─ Copy template.Args → sandbox.Args (if sandbox has none)                  │
+│     ├─ Merge template.EnvVars → sandbox.EnvVars (sandbox values win)            │
 │     ├─ Merge template.Metadata → sandbox.Metadata                               │
 │     ├─ Apply template resources (CPU, memory) if not set on request             │
 │     ├─ Generate UUID id, compute name "sbx-{template}-{id[:20]}"                │
@@ -212,7 +237,9 @@ The pool keeps pre-warmed ReplicaSets ready to be handed out immediately, avoidi
 │    3. If found → adaptReplicasetToSandbox():                                     │
 │       ├─ Set sbx-pool=false on labels                                            │
 │       ├─ Update sbx-user, sbx-time labels                                        │
-│       └─ Replace sandbox-data annotation with actual sandbox JSON               │
+│       ├─ Replace sandbox-data annotation with actual sandbox JSON               │
+│       └─ Re-render pod spec from sandbox.yaml template so metadata-driven       │
+│          features (e.g. mitm sidecar injection) are applied to the acquired RS  │
 │    4. Enqueue replenish trigger (refill pool async)                              │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -287,6 +314,7 @@ Base path: `/api/v1`
 | `GET` | `/sandboxes/{name}/events` | List ReplicaSet events |
 | `POST` | `/sandboxes/{name}/terminal` | Execute a shell command (one-shot) |
 | `GET` | `/sandboxes/{name}/terminal/ws` | WebSocket interactive terminal |
+| `GET` | `/terminal/sandbox/{name}/detect-shell` | Detect the first usable shell in the sandbox container (returns `{"shell": "/bin/bash"}`) |
 | `GET` | `/sandboxes/{name}/files` | List files (`?path=/some/dir`) |
 | `POST` | `/sandboxes/{name}/files` | Upload file (`multipart/form-data`, `?path=`) |
 | `GET` | `/sandboxes/{name}/files/download` | Download file (`?path=/file`) |
@@ -394,6 +422,8 @@ The terminal endpoint (`/api/v1/sandboxes/{name}/terminal/ws`) uses `kubectl exe
 | Server→Client | `closed` | — | Session closed |
 
 Default shell: `sh -lc "if command -v bash >/dev/null 2>&1; then exec bash -il; else exec sh -i; fi"`
+
+If the sandbox template has a `shell` field set (e.g. `shell: "/bin/bash"`), that path is used directly as the shell command, bypassing the default detection logic.
 
 ---
 
@@ -550,6 +580,7 @@ See the README Traffic Monitor section for step-by-step instructions for both ap
 | `Controller.Create()` | Acquires or creates ReplicaSet, waits for readiness |
 | `Controller.GetSandbox()` | Reads sandbox from ReplicaSet `sandbox-data` annotation |
 | `Controller.StreamContainerLogs()` | Opens a `kubectl logs --follow` stream for a named container in a sandbox pod |
+| `Controller.DetectShell()` | Probes a list of candidate shells (`sh`, `bash`, `/bin/sh`, `/bin/bash`, etc.) inside the sandbox container; returns the first one that executes successfully |
 | `PoolManager.AcquirePoolReplicaSet()` | Returns pool RS or creates fresh one |
 | `PoolManager.adaptReplicasetToSandbox()` | Converts pool RS to user RS (label+annotation update) |
 | `PoolManager.replenishPoolAsync()` | Fills pool back to configured size |
@@ -589,6 +620,8 @@ The React frontend is served from `/ui/dist` (built output embedded in the Docke
 | Pattern | Text | Required when type=dynamic |
 | No Startup Probe | Checkbox | |
 | Args | Textarea | One arg per line |
+| Shell | Text | Shell path for terminal (e.g. `/bin/bash`); leave blank to use default detection |
+| Env Vars | Textarea | `key=value` one per line; merged with sandbox-supplied env vars (sandbox wins) |
 | Metadata | Textarea | `key=value` one per line |
 | Resources | Sub-form | cpu, memory, cpuLimit, memoryLimit |
 | Pool Resources | Sub-form | Separate resources for warm pods |
@@ -674,4 +707,10 @@ Edit via the UI at `/config/sandbox-template` or directly in `config/sandbox.yam
 The API validates the template on save by rendering it with a sample sandbox and parsing the output as YAML — syntax errors are rejected immediately.
 
 ---
+
+## Changelog
+
+| Date | Commit | Changes |
+|------|--------|---------|
+| 2026-04-06 | c90dab4 | Added `envVars` and `shell` fields to Template; shell detection in terminal WS handler; `DetectSandboxShell` API endpoint; pool `adaptReplicasetToSandbox` now re-renders pod spec from template; UI form fields for Shell and Env Vars |
 
