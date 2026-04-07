@@ -303,6 +303,147 @@ print(response.text)
 ```
 
 
+# Sandbox Proxy Routing
+
+When a sandbox runs a web application, Agent-Sandbox can proxy HTTP traffic directly to the sandbox pod. Two routing strategies are available — choose based on the complexity of the app being served.
+
+## Option 1 — Path-based Proxy (built-in, zero config)
+
+Every sandbox is accessible at:
+
+```
+https://agent-sandbox.your-host.com/sandbox/{sandbox-name}/
+```
+
+The server strips the `/sandbox/{name}` prefix before forwarding the request to the pod, and automatically injects a `<base href="/sandbox/{name}/">` tag into every HTML response so that relative asset paths resolve correctly through the proxy.
+
+**Best for:** simple UIs and static HTML apps that do not use JavaScript `fetch()` calls with absolute paths.
+
+**Limitations:** JavaScript-side requests using absolute paths (e.g. `fetch('/api/data')`) and WebSocket connections will not resolve through the proxy prefix. For those, use Option 2.
+
+No configuration required — this proxy is always active.
+
+---
+
+## Option 2 — Subdomain-based Proxy (full compatibility)
+
+Each sandbox is exposed on its own subdomain:
+
+```
+https://{sandbox-name}.s.your-host.com/
+```
+
+The request is forwarded to the pod unchanged — no path stripping, no HTML rewriting. The app receives requests at `/` and all paths resolve naturally, including JS `fetch()` calls and WebSockets.
+
+**Best for:** full SPAs, Next.js / Vite apps, Jupyter, code-server, and anything that uses WebSocket connections or absolute API paths.
+
+### Prerequisites
+
+1. **DNS** — Add a wildcard A record pointing to the same IP as your Agent-Sandbox host:
+
+   | Type | Name | Content |
+   |------|------|---------|
+   | A | `*.s` | `<your server IP>` |
+
+2. **TLS** — Add `*.s.your-host.com` to your wildcard certificate's `dnsNames`:
+
+   ```yaml
+   spec:
+     dnsNames:
+       - "*.your-host.com"
+       - "*.s.your-host.com"   # add this
+   ```
+
+3. **Ingress / Gateway** — Add a route that matches `*.s.your-host.com` and forwards to the Agent-Sandbox service.
+
+   **Nginx Ingress example:**
+   ```yaml
+   apiVersion: networking.k8s.io/v1
+   kind: Ingress
+   metadata:
+     name: agent-sandbox-wildcard
+   spec:
+     ingressClassName: nginx
+     tls:
+       - hosts:
+           - "*.s.your-host.com"
+         secretName: wildcard-cert
+     rules:
+       - host: "*.s.your-host.com"
+         http:
+           paths:
+             - path: /
+               pathType: Prefix
+               backend:
+                 service:
+                   name: agent-sandbox
+                   port:
+                     number: 80
+   ```
+
+   **Cilium / Gateway API example:**
+   ```yaml
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: HTTPRoute
+   metadata:
+     name: agent-sandbox-wildcard
+   spec:
+     parentRefs:
+       - name: <your-gateway-name>
+         namespace: <your-gateway-namespace>
+     hostnames:
+       - "*.s.your-host.com"
+     rules:
+       - matches:
+           - path:
+               type: PathPrefix
+               value: /
+         backendRefs:
+           - name: agent-sandbox
+             port: 80
+   ```
+
+4. **Enable in Agent-Sandbox** — Set the `SANDBOX_PROXY_DOMAIN` environment variable on the Agent-Sandbox deployment:
+
+   ```yaml
+   env:
+     - name: SANDBOX_PROXY_DOMAIN
+       value: "s.your-host.com"
+   ```
+
+   When this variable is set, any request whose `Host` header matches `*.s.your-host.com` is routed directly to the corresponding sandbox pod. When left empty (default), subdomain routing is disabled and only Option 1 is active.
+
+### How the sandbox name is resolved
+
+The sandbox name (and optional port) are extracted from the first label of the hostname:
+
+```
+sbx-myapp-abc123.s.your-host.com          → sandbox: sbx-myapp-abc123, port: default
+sbx-myapp-abc123-6080.s.your-host.com     → sandbox: sbx-myapp-abc123, port: 6080
+```
+
+Encoding the port in the subdomain ensures that every request the browser makes — HTML, assets, API calls, WebSocket upgrades — all reach the correct port automatically. This is the recommended approach for sandboxes that expose multiple ports (e.g. a noVNC server on `6080` alongside an API on `8080`).
+
+The name must match an existing running sandbox. If no pod is found for that name, the proxy returns `502 Bad Gateway`.
+
+---
+
+## Comparison
+
+| | Path proxy | Subdomain proxy |
+|---|---|---|
+| URL pattern | `/sandbox/{name}/` | `{name}.s.your-host.com` |
+| HTML asset loading | fixed via `<base>` tag | native |
+| JS `fetch('/api/...')` | broken | works |
+| WebSockets | broken | works |
+| Cookie scope | shared host | isolated per sandbox |
+| DNS / infra changes | none | wildcard DNS + cert |
+| Config required | none | `SANDBOX_PROXY_DOMAIN` env var |
+
+Both options can run simultaneously. Path proxy serves as a fallback for simple apps; subdomain proxy handles everything else.
+
+---
+
 # Traffic Monitor
 
 Agent-Sandbox includes a live HTTP/HTTPS traffic inspector that shows every request a sandbox makes, in real time.

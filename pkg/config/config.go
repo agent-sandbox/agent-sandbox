@@ -91,6 +91,11 @@ type Config struct {
 	SandboxDefaultTemplate     string `split_words:"true" default:"aio" required:"false"`
 
 	ConfigmapName string `split_words:"true" default:"agent-sandbox" required:"false"`
+
+	// SandboxProxyDomain enables subdomain-based routing for proxied sandbox web apps.
+	// When set (e.g. "sandbox.yourdomain.com"), requests arriving on {name}.{domain}
+	// are proxied directly to the sandbox pod without path prefix stripping.
+	SandboxProxyDomain string `split_words:"true" default:"" required:"false"`
 }
 
 func InitConfig() *Config {
