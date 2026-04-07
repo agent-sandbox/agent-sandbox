@@ -652,6 +652,13 @@ func (a *Handler) DetectSandboxShell(r *http.Request) (interface{}, error) {
 // Config handlers
 // ------------------------------------------------------
 
+func (a *Handler) GetServerInfo(r *http.Request) (interface{}, error) {
+	return map[string]string{
+		"proxyDomain": config.Cfg.SandboxProxyDomain,
+		"version":     config.Version,
+	}, nil
+}
+
 func (a *Handler) GetTemplatesConfig(r *http.Request) (interface{}, error) {
 	return config.Cfg.ReadTemplatesFromCM()
 }

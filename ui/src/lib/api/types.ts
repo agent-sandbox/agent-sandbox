@@ -4,6 +4,11 @@ export type ApiEnvelope<T> = {
   error?: string
 }
 
+export type ServerInfo = {
+  proxyDomain: string
+  version: string
+}
+
 export type Sandbox = {
   name?: string
   template?: string
@@ -19,6 +24,7 @@ export type Sandbox = {
   cpu_limit?: string
   memory_limit?: string
   metadata?: Record<string, string>
+  extra_ports?: number[]
 }
 
 export type CreateSandboxRequest = {
@@ -53,6 +59,7 @@ export type Template = {
   metadata?: Record<string, string>
   noStartupProbe?: boolean
   args?: string[]
+  extraPorts?: number[]
   envVars?: Record<string, string>
   shell?: string
   resources?: TemplateResources

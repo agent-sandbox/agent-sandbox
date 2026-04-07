@@ -1,5 +1,9 @@
 import { requestEnvelope } from './http'
-import type { CreateSandboxRequest, Sandbox, SandboxMetricsData } from './types'
+import type { CreateSandboxRequest, Sandbox, SandboxMetricsData, ServerInfo } from './types'
+
+export async function getServerInfo(): Promise<ServerInfo> {
+  return requestEnvelope<ServerInfo>('/config/info', { method: 'GET' })
+}
 
 export async function listSandboxes(): Promise<Sandbox[]> {
   const data = await requestEnvelope<Sandbox[] | undefined>('/sandbox', {

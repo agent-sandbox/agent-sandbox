@@ -95,6 +95,7 @@ func (ahh *ApiHttpHandler) regHandlers() {
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/sandbox/files/{name}/download", config.Cfg.APIBaseURL), sbHeader.DownloadSandboxFile)
 
 	// Rest API for config
+	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/config/info", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.GetServerInfo) })
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/config/templates", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.GetTemplatesConfig) })
 	ahh.mux.HandleFunc(fmt.Sprintf("POST %s/config/templates", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.SaveTemplatesConfig) })
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/config/sandbox-template", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.GetSandboxTemplateConfig) })

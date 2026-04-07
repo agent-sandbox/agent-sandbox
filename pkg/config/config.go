@@ -63,6 +63,7 @@ type Template struct {
 	Args           []string          `json:"args" required:"false"`
 	EnvVars        map[string]string `json:"envVars" required:"false"`
 	Shell          string            `json:"shell" required:"false"`
+	ExtraPorts     []int             `json:"extraPorts" required:"false"`
 	Resources      Resources         `json:"resources"  required:"false"`
 	Pool           TemplatePool      `json:"pool" required:"false"`
 	Description    string            `json:"description" required:"false"`
@@ -350,6 +351,7 @@ func GetTemplateByName(name string) (*Template, error) {
 				Args:           t.Args,
 				EnvVars:        t.EnvVars,
 				Shell:          t.Shell,
+				ExtraPorts:     t.ExtraPorts,
 			}
 			return dynT, nil
 		}

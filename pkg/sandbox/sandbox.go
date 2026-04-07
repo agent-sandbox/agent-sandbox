@@ -114,6 +114,9 @@ type Sandbox struct {
 	// Port for startup probe and main service
 	Port int `json:"port,omitempty"  default:"8080"`
 
+	// Additional ports exposed by the sandbox (from template extraPorts)
+	ExtraPorts []int `json:"extra_ports,omitempty"`
+
 	// Status of the sandbox. Options are 'creating', 'running', 'idle', 'deleting', 'error'.
 	Status SandboxState `json:"status,omitempty"`
 
@@ -226,6 +229,11 @@ func (sb *Sandbox) Make() error {
 	// apply template args if sandbox has none
 	if len(sb.Args) == 0 && len(t.Args) > 0 {
 		sb.Args = t.Args
+	}
+
+	// copy extra ports from template
+	if len(t.ExtraPorts) > 0 {
+		sb.ExtraPorts = t.ExtraPorts
 	}
 
 	// merge template envVars into sandbox envVars, sandbox envVars have higher priority
