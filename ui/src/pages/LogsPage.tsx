@@ -185,10 +185,9 @@ export default function LogsPage() {
             <label className="flex items-center gap-2">
               <span className="text-sm">Sandbox</span>
               <select
-                className="select select-sm select-bordered"
+                className="select select-sm select-bordered w-full max-w-xs"
                 value={selectedSandboxName}
                 onChange={handleSandboxChange}
-                style={{width:'400px'}}
                 disabled={isSandboxesLoading || sandboxes.length === 0}
               >
                 {sandboxes.length === 0 ? (

@@ -85,8 +85,8 @@ function BodySection({ label, body, contentType }: { label: string; body?: strin
 }
 
 function FlowDetail({ flow, onClose }: { flow: TrafficFlow; onClose: () => void }) {
-  return (
-    <div className="flex w-96 shrink-0 flex-col border-l border-base-300 bg-base-100" style={{ minWidth: '24rem' }}>
+  const content = (
+    <>
       <div className="flex items-center justify-between border-b border-base-300 px-4 py-2">
         <div className="flex items-center gap-2">
           {flow.method && (
@@ -154,7 +154,20 @@ function FlowDetail({ flow, onClose }: { flow: TrafficFlow; onClose: () => void 
           </p>
         )}
       </div>
-    </div>
+    </>
+  )
+
+  return (
+    <>
+      {/* Mobile: full-screen modal overlay */}
+      <div className="fixed inset-0 z-50 flex flex-col bg-base-100 md:hidden">
+        {content}
+      </div>
+      {/* Desktop: side panel */}
+      <div className="hidden md:flex w-96 shrink-0 flex-col border-l border-base-300 bg-base-100">
+        {content}
+      </div>
+    </>
   )
 }
 
@@ -287,8 +300,7 @@ export default function TrafficPage() {
             <label className="flex items-center gap-2">
               <span className="text-sm">Sandbox</span>
               <select
-                className="select select-sm select-bordered"
-                style={{ width: '320px' }}
+                className="select select-sm select-bordered w-full max-w-xs"
                 value={selectedName}
                 onChange={(e) => handleSandboxChange(e.target.value)}
                 disabled={sandboxesLoading || sandboxes.length === 0}
@@ -306,11 +318,10 @@ export default function TrafficPage() {
             </label>
 
             <input
-              className="input input-sm input-bordered"
+              className="input input-sm input-bordered w-full max-w-xs"
               placeholder="Filter by URL..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              style={{ width: '220px' }}
             />
 
             <label className="flex items-center gap-2">
