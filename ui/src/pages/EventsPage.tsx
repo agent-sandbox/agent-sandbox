@@ -176,11 +176,10 @@ export default function EventsPage() {
             <label className="flex items-center gap-2">
               <span className="text-sm">Sandbox</span>
               <select
-                className="select select-sm select-bordered"
+                className="select select-sm select-bordered w-full max-w-xs"
                 value={selectedSandboxName}
                 onChange={handleSandboxChange}
                 disabled={isSandboxesLoading}
-                style={{ width: '400px' }}
               >
                 <option value="">All sandboxes</option>
                 {sandboxes.map((sandbox, index) => {

@@ -351,11 +351,10 @@ export default function FilesPage() {
             <label className="flex items-center gap-2">
               <span className="text-sm">Sandbox</span>
               <select
-                className="select select-sm select-bordered"
+                className="select select-sm select-bordered w-full max-w-xs"
                 value={selectedSandboxName}
                 onChange={handleSandboxChange}
                 disabled={isSandboxesLoading || sandboxes.length === 0}
-                style={{width:'400px'}}
               >
                 {sandboxes.length === 0 ? (
                   <option value="">No sandboxes</option>
