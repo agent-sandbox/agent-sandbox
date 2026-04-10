@@ -25,20 +25,6 @@ Shell commands etc. with stateful, long-running, multi-session and multi-tenant.
     <img alt="agent-sandbox" src="docs/imgs/uiimg-sbxs.png" width="90%"/>
 </a>
 </div>
-<div>
-<a href="docs/imgs/uiimg-pools.jpg" target="_blank">
-    <img alt="agent-sandbox" src="docs/imgs/uiimg-pools.jpg" width="45%"/>
-</a>
-<a href="docs/imgs/uiimg-files.jpg" target="_blank">
-    <img alt="agent-sandbox" src="docs/imgs/uiimg-files.jpg" width="45%"/>
-</a>
-<a href="docs/imgs/uiimg-terminal.png" target="_blank">
-    <img alt="agent-sandbox" src="docs/imgs/uiimg-terminal.png" width="45%"/>
-</a>
-<a href="docs/imgs/uiimg-tpl.jpg" target="_blank">
-    <img alt="agent-sandbox" src="docs/imgs/uiimg-tpl.jpg" width="45%"/>
-</a>
-</div>
 </div>
 
 <hr/>
@@ -297,8 +283,8 @@ print(response.text)
 
 ```json
 {
-    "code": "0",
-    "data": "Sandbox sandbox-01 deleted successfully"
+  "code": "0",
+  "data": "Sandbox sandbox-01 deleted successfully"
 }
 ```
 
