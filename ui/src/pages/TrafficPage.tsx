@@ -164,7 +164,7 @@ function FlowDetail({ flow, onClose }: { flow: TrafficFlow; onClose: () => void 
         {content}
       </div>
       {/* Desktop: side panel */}
-      <div className="hidden md:flex w-96 shrink-0 flex-col border-l border-base-300 bg-base-100">
+      <div className="hidden w-96 shrink-0 flex-col border-l border-base-300 bg-base-100 md:flex">
         {content}
       </div>
     </>

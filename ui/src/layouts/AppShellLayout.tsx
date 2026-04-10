@@ -89,7 +89,7 @@ export default function AppShellLayout() {
       {/* Main content area */}
       <div className="drawer-content flex flex-col min-w-0">
         {/* Mobile topbar */}
-        <div className="navbar bg-base-100 border-b border-base-300 lg:hidden sticky top-0 z-30 px-3 min-h-12">
+        <div className="navbar sticky top-0 z-30 border-b border-base-300 bg-base-100 lg:hidden min-h-12 px-3">
           <label htmlFor="main-drawer" className="btn btn-ghost btn-square btn-sm">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="3" y1="6" x2="21" y2="6"/>
@@ -103,7 +103,7 @@ export default function AppShellLayout() {
           </div>
         </div>
 
-        <main className="custom-scrollbar flex-1 overflow-y-auto p-4 lg:p-6 space-y-3 min-w-0" style={{paddingRight: '20px'}}>
+        <main className="custom-scrollbar flex-1 overflow-y-auto p-4 pr-5 lg:p-6 space-y-3 min-w-0">
           <Outlet/>
         </main>
       </div>
