@@ -12,6 +12,7 @@ import SandboxesPage from '../pages/SandboxesPage'
 import SandboxTemplateConfigPage from '../pages/SandboxTemplateConfigPage'
 import TemplatesConfigPage from '../pages/TemplatesConfigPage'
 import TerminalPage from '../pages/TerminalPage'
+import TrafficPage from '../pages/TrafficPage'
 
 function RequireAuth() {
   if (!hasAuthToken()) {
@@ -62,6 +63,10 @@ export const appRouter = createHashRouter([
           {
             path: 'files',
             element: <FilesPage />,
+          },
+          {
+            path: 'traffic',
+            element: <TrafficPage />,
           },
           {
             path: 'events',

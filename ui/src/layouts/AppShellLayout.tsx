@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { canAccessNav, clearAuthToken, getAuthToken } from '../lib/auth/token'
@@ -8,6 +8,8 @@ export default function AppShellLayout() {
   const navigate = useNavigate()
   const [version, setVersion] = useState('unknown')
   const [theme, setTheme] = useState<ThemeName>(getTheme())
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const drawerCheckboxRef = useRef<HTMLInputElement>(null)
   const token = getAuthToken()
 
   const canViewSandboxes = canAccessNav('sandboxes', token)
@@ -15,11 +17,12 @@ export default function AppShellLayout() {
   const canViewLogs = canAccessNav('logs', token)
   const canViewTerminal = canAccessNav('terminal', token)
   const canViewFiles = canAccessNav('files', token)
+  const canViewTraffic = canAccessNav('traffic', token)
   const canViewTemplatesConfig = canAccessNav('templatesConfig', token)
   const canViewSandboxTemplateConfig = canAccessNav('sandboxTemplateConfig', token)
   const canViewEvents = canAccessNav('events', token)
 
-  const hasSandboxTools = canViewLogs || canViewTerminal || canViewFiles
+  const hasSandboxTools = canViewLogs || canViewTerminal || canViewFiles || canViewTraffic
   const hasSettings = canViewTemplatesConfig || canViewSandboxTemplateConfig || canViewEvents
 
   const tokenPreview = token ? `${token.substring(0, 10)}...` : 'N/A'
@@ -38,6 +41,13 @@ export default function AppShellLayout() {
   const handleLogout = () => {
     clearAuthToken()
     navigate('/login', { replace: true })
+  }
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false)
+    if (drawerCheckboxRef.current) {
+      drawerCheckboxRef.current.checked = false
+    }
   }
 
   useEffect(() => {
@@ -66,10 +76,42 @@ export default function AppShellLayout() {
   }, [])
 
   return (
-    <div className="h-screen  bg-base-200 text-base-content">
-      <div className="mx-auto flex h-full w-full  gap-6 p-4 lg:p-6">
-          {/*<aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-[260px] shrink-0 flex-col rounded-box border border-base-300 bg-base-100 p-4 shadow-sm lg:flex">*/}
-        <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-[260px] shrink-0 flex-col  p-4  lg:flex">
+    <div className="drawer lg:drawer-open h-screen bg-base-200 text-base-content">
+      <input
+        id="main-drawer"
+        type="checkbox"
+        className="drawer-toggle"
+        ref={drawerCheckboxRef}
+        checked={isMobileMenuOpen}
+        onChange={(e) => setIsMobileMenuOpen(e.target.checked)}
+      />
+
+      {/* Main content area */}
+      <div className="drawer-content flex flex-col min-w-0">
+        {/* Mobile topbar */}
+        <div className="navbar sticky top-0 z-30 border-b border-base-300 bg-base-100 lg:hidden min-h-12 px-3">
+          <label htmlFor="main-drawer" className="btn btn-ghost btn-square btn-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </label>
+          <div className="flex items-center gap-2 ml-2">
+            <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Agent Sandbox logo" className="h-6 w-5 rounded" />
+            <span className="font-semibold text-sm">Agent Sandbox</span>
+          </div>
+        </div>
+
+        <main className="custom-scrollbar flex-1 overflow-y-auto p-4 pr-5 lg:p-6 space-y-3 min-w-0">
+          <Outlet/>
+        </main>
+      </div>
+
+      {/* Sidebar drawer */}
+      <div className="drawer-side z-40">
+        <label htmlFor="main-drawer" aria-label="close sidebar" className="drawer-overlay"></label>
+        <aside className="w-[260px] min-h-full bg-base-200 flex flex-col p-4">
           <div className="mb-4 flex items-center gap-3">
             <img src={`${import.meta.env.BASE_URL}logo.png`} alt="Agent Sandbox logo" className="h-8 w-7 rounded" />
             <div>
@@ -83,14 +125,16 @@ export default function AppShellLayout() {
                 {canViewSandboxes && (
                   <li>
                       <NavLink to="/sandboxes"
-                               className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
+                               className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}
+                               onClick={closeMobileMenu}>
                           Sandboxes
                       </NavLink>
                   </li>
                 )}
                 {canViewPool && (
                   <li>
-                      <NavLink to="/pool" className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
+                      <NavLink to="/pool" className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}
+                               onClick={closeMobileMenu}>
                           Pools
                       </NavLink>
                   </li>
@@ -99,7 +143,8 @@ export default function AppShellLayout() {
                 {hasSandboxTools && <li className="menu-title">Sandbox Tools</li>}
                 {canViewLogs && (
                   <li>
-                      <NavLink to="/logs" className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
+                      <NavLink to="/logs" className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}
+                               onClick={closeMobileMenu}>
                           Logs
                       </NavLink>
                   </li>
@@ -107,15 +152,25 @@ export default function AppShellLayout() {
                 {canViewTerminal && (
                   <li>
                       <NavLink to="/terminal"
-                               className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
+                               className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}
+                               onClick={closeMobileMenu}>
                           Terminal
                       </NavLink>
                   </li>
                 )}
                 {canViewFiles && (
                   <li>
-                      <NavLink to="/files" className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
+                      <NavLink to="/files" className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}
+                               onClick={closeMobileMenu}>
                           Files
+                      </NavLink>
+                  </li>
+                )}
+                {canViewTraffic && (
+                  <li>
+                      <NavLink to="/traffic" className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}
+                               onClick={closeMobileMenu}>
+                          Traffic
                       </NavLink>
                   </li>
                 )}
@@ -124,7 +179,8 @@ export default function AppShellLayout() {
                 {canViewTemplatesConfig && (
                   <li>
                       <NavLink to="/config/templates"
-                               className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
+                               className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}
+                               onClick={closeMobileMenu}>
                           Templates Config
                       </NavLink>
                   </li>
@@ -132,14 +188,16 @@ export default function AppShellLayout() {
                 {canViewSandboxTemplateConfig && (
                   <li>
                       <NavLink to="/config/sandbox-template"
-                               className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
+                               className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}
+                               onClick={closeMobileMenu}>
                           Sandbox-Template Config
                       </NavLink>
                   </li>
                 )}
                 {canViewEvents && (
                   <li>
-                      <NavLink to="/events" className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
+                      <NavLink to="/events" className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}
+                               onClick={closeMobileMenu}>
                           Events
                       </NavLink>
                   </li>
@@ -217,12 +275,6 @@ export default function AppShellLayout() {
                 </div>
             </div>
         </aside>
-
-
-          <main className="custom-scrollbar min-h-0 min-w-0 flex-1 space-y-3 overflow-y-auto"
-                style={{paddingRight: '20px'}}>
-              <Outlet/>
-          </main>
       </div>
     </div>
   )

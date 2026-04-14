@@ -31,6 +31,55 @@ spec:
 {{ if index .Sandbox.Metadata "runtimeClassName" }}
       runtimeClassName: {{.Sandbox.Metadata.runtimeClassName}}
 {{ end }}
+{{- if index .Sandbox.Metadata "mitm" }}
+      initContainers:
+        - name: mitm-cert-gen
+          image: mitmproxy/mitmproxy:12
+          securityContext:
+            runAsUser: 1000
+          command:
+            - python3
+            - -c
+            - |
+              from pathlib import Path
+              from mitmproxy.certs import CertStore
+              import shutil, os
+              Path('/mitm-data').mkdir(exist_ok=True)
+              CertStore.create_store(Path('/mitm-data'), 'mitmproxy', 2048)
+              print('CA cert generated')
+              system_cas = '/etc/ssl/certs/ca-certificates.crt'
+              combined = Path('/mitm-data/combined-ca.pem')
+              shutil.copy(system_cas, combined)
+              with combined.open('ab') as f:
+                f.write(Path('/mitm-data/mitmproxy-ca-cert.pem').read_bytes())
+              print('Combined CA bundle created')
+              Path('/mitm-data/sitecustomize.py').write_text(
+                "try:\n"
+                "  import certifi.core as _c\n"
+                "  _c.where = lambda: '/mitm-ca/combined-ca.pem'\n"
+                "  import certifi as _certifi\n"
+                "  _certifi.where = lambda: '/mitm-ca/combined-ca.pem'\n"
+                "except Exception:\n"
+                "  pass\n"
+              )
+              print('sitecustomize.py written')
+              Path('/mitm-data/bin').mkdir(exist_ok=True)
+              wrapper = (
+                '#!/bin/sh\n'
+                'export NODE_EXTRA_CA_CERTS=/mitm-ca/mitmproxy-ca-cert.pem\n'
+                'export PATH=$(echo "$PATH" | tr ":" "\\n" | grep -vF /mitm-ca/bin | tr "\\n" ":")\n'
+                'exec /usr/bin/{cmd} "$@"\n'
+              )
+              import stat
+              for cmd in ['node', 'npm', 'npx']:
+                p = Path(f'/mitm-data/bin/{cmd}')
+                p.write_text(wrapper.format(cmd=cmd))
+                p.chmod(p.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+              print('wrapper scripts written')
+          volumeMounts:
+            - name: mitm-data
+              mountPath: /mitm-data
+{{- end }}
       containers:
         - name: sandbox
           image: {{.Sandbox.Image}}
@@ -51,10 +100,24 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+  {{- if index .Sandbox.Metadata "mitm"}}
+            - name: REQUESTS_CA_BUNDLE
+              value: /mitm-ca/combined-ca.pem
+            - name: SSL_CERT_FILE
+              value: /mitm-ca/combined-ca.pem
+            - name: NODE_EXTRA_CA_CERTS
+              value: /mitm-ca/mitmproxy-ca-cert.pem
+            - name: NPM_CONFIG_CAFILE
+              value: /mitm-ca/combined-ca.pem
+            - name: PYTHONPATH
+              value: /mitm-ca
+            - name: PATH
+              value: /mitm-ca/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  {{- end}}
   {{if .Sandbox.EnvVars}}
       {{range $name, $value := .Sandbox.EnvVars }}
             - name: {{$name}}
-              value: {{printf "%q" $value}}
+              value: {{$value}}
       {{end }}
   {{end}}
           resources:
@@ -64,6 +127,51 @@ spec:
             limits:
               cpu: {{.Sandbox.CPULimit}}
               memory: {{.Sandbox.MemoryLimit}}
+  {{if or (index .Sandbox.Metadata "data_vol") (index .Sandbox.Metadata "config_vol") (index .Sandbox.Metadata "mitm")}}
+          volumeMounts:
+    {{if index .Sandbox.Metadata "data_vol"}}
+            - name: sandbox-data-vol
+              mountPath: {{index .Sandbox.Metadata "data_vol"}}
+    {{end}}
+    {{if index .Sandbox.Metadata "config_vol"}}
+            - name: sandbox-config-vol
+              mountPath: {{index .Sandbox.Metadata "config_vol"}}
+    {{end}}
+    {{if index .Sandbox.Metadata "mitm"}}
+            - name: mitm-data
+              mountPath: /mitm-ca
+              readOnly: true
+            - name: mitm-data
+              mountPath: /etc/ssl/certs/mitmproxy-ca-cert.pem
+              subPath: mitmproxy-ca-cert.pem
+              readOnly: true
+    {{end}}
+  {{end}}
+{{- if index .Sandbox.Metadata "mitm" }}
+        - name: mitmproxy
+          image: mitmproxy/mitmproxy:12
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              add: ["NET_ADMIN"]
+          command:
+            - sh
+            - -c
+            - |
+              apt-get update -qq && apt-get install -y -qq iptables
+              su -s /bin/sh mitmproxy -c 'mitmdump --mode transparent --listen-port 8877 --set ssl_insecure=true -s /addon/logger.py' &
+              MITM_PID=$!
+              until python3 -c "import socket; s=socket.socket(); s.connect(('127.0.0.1',8877)); s.close()" 2>/dev/null; do sleep 0.2; done
+              iptables -t nat -A OUTPUT -p tcp --dport 80  -m owner ! --uid-owner 1000 -j REDIRECT --to-port 8877
+              iptables -t nat -A OUTPUT -p tcp --dport 443 -m owner ! --uid-owner 1000 -j REDIRECT --to-port 8877
+              echo "iptables rules set, mitm ready"
+              wait $MITM_PID
+          volumeMounts:
+            - name: mitm-addon
+              mountPath: /addon
+            - name: mitm-data
+              mountPath: /home/mitmproxy/.mitmproxy
+{{- end }}
   {{if not .Sandbox.TemplateObj.NoStartupProbe}}
           startupProbe:
             failureThreshold: 600
@@ -72,4 +180,26 @@ spec:
             periodSeconds: 1
             successThreshold: 1
             timeoutSeconds: 3
+  {{end}}
+  {{if or (index .Sandbox.Metadata "data_vol") (index .Sandbox.Metadata "config_vol") (index .Sandbox.Metadata "mitm")}}
+      volumes:
+    {{if index .Sandbox.Metadata "data_vol"}}
+        - name: sandbox-data-vol
+          hostPath:
+            path: /home/apps-data/sandboxes/{{.Sandbox.Name}}/data
+            type: DirectoryOrCreate
+    {{end}}
+    {{if index .Sandbox.Metadata "config_vol"}}
+        - name: sandbox-config-vol
+          hostPath:
+            path: /home/apps-data/sandboxes/{{.Sandbox.Name}}/config
+            type: DirectoryOrCreate
+    {{end}}
+    {{if index .Sandbox.Metadata "mitm"}}
+        - name: mitm-addon
+          configMap:
+            name: agent-sandbox-mitm-addon
+        - name: mitm-data
+          emptyDir: {}
+    {{end}}
   {{end}}

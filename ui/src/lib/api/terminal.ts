@@ -8,6 +8,13 @@ import type {
   TerminalSessionEvent,
 } from './types'
 
+export async function detectSandboxShell(name: string): Promise<string> {
+  const result = await requestEnvelope<{ shell: string }>(`/terminal/sandbox/${encodeURIComponent(name)}/detect-shell`, {
+    method: 'GET',
+  })
+  return result.shell
+}
+
 export async function executeSandboxTerminal(name: string, payload: SandboxTerminalRequest): Promise<SandboxTerminalResult> {
   return requestEnvelope<SandboxTerminalResult>(`/terminal/sandbox/${encodeURIComponent(name)}`, {
     method: 'POST',

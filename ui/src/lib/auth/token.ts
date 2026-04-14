@@ -6,11 +6,12 @@ export type NavKey =
   | 'logs'
   | 'terminal'
   | 'files'
+  | 'traffic'
   | 'templatesConfig'
   | 'sandboxTemplateConfig'
   | 'events'
 
-const DEFAULT_ALLOWED_NAVS: NavKey[] = ['sandboxes', 'pool', 'logs', 'terminal', 'files', 'events']
+const DEFAULT_ALLOWED_NAVS: NavKey[] = ['sandboxes', 'pool', 'logs', 'terminal', 'files', 'traffic', 'events']
 
 export function canAccessNav(key: NavKey, token = getAuthToken()): boolean {
   if (token.startsWith('sys-')) {

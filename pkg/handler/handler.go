@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/agent-sandbox/agent-sandbox/pkg/activator"
 	e2bapi "github.com/agent-sandbox/agent-sandbox/pkg/api/e2b"
@@ -51,9 +52,17 @@ func New(rootCtx context.Context, a *activator.Activator, c *sandbox.Controller)
 	authMux := ApiKeyAuthMiddleware(mux)
 	loggedMux := LoggingMiddleware(authMux)
 
+	// Subdomain proxy: intercept {name}.{SandboxProxyDomain} before the mux
+	var finalHandler http.Handler = loggedMux
+	if config.Cfg.SandboxProxyDomain != "" {
+		srHandler := router.NewSandboxRouter(rootCtx, a)
+		finalHandler = subdomainMiddleware(srHandler, loggedMux)
+		klog.Info("Subdomain proxy enabled for domain: ", config.Cfg.SandboxProxyDomain)
+	}
+
 	server := &http.Server{
 		Addr:    config.Cfg.ServerAddr,
-		Handler: loggedMux,
+		Handler: finalHandler,
 	}
 
 	klog.Info("Api server ", "addr=", config.Cfg.ServerAddr)
@@ -77,6 +86,8 @@ func (ahh *ApiHttpHandler) regHandlers() {
 
 	ahh.mux.HandleFunc(fmt.Sprintf("POST %s/terminal/sandbox/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.ExecuteSandboxTerminal) })
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/terminal/sandbox/{name}/ws", config.Cfg.APIBaseURL), sbHeader.StreamSandboxTerminalWS)
+	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/terminal/sandbox/{name}/detect-shell", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.DetectSandboxShell) })
+	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/traffic/sandbox/{name}/ws", config.Cfg.APIBaseURL), sbHeader.StreamSandboxTrafficWS)
 
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/sandbox/files/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.ListSandboxFiles) })
 	ahh.mux.HandleFunc(fmt.Sprintf("POST %s/sandbox/files/{name}/upload", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.UploadSandboxFile) })
@@ -84,6 +95,7 @@ func (ahh *ApiHttpHandler) regHandlers() {
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/sandbox/files/{name}/download", config.Cfg.APIBaseURL), sbHeader.DownloadSandboxFile)
 
 	// Rest API for config
+	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/config/info", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.GetServerInfo) })
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/config/templates", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.GetTemplatesConfig) })
 	ahh.mux.HandleFunc(fmt.Sprintf("POST %s/config/templates", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.SaveTemplatesConfig) })
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/config/sandbox-template", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.GetSandboxTemplateConfig) })
@@ -121,6 +133,24 @@ func (ahh *ApiHttpHandler) regHandlers() {
 	ahh.mux.HandleFunc("/sandboxes/router/{sandboxID}/{port}/", e2bHeader.SandboxRouterOfPath())
 	// catch-all handler for any unmatched requests, mainly for E2B sandbox proxy purpose
 	ahh.mux.HandleFunc("/", e2bHeader.SandboxRouterNative())
+}
+
+// subdomainMiddleware intercepts requests whose Host header matches
+// {name}.{SandboxProxyDomain} and routes them to the sandbox pod directly,
+// without path stripping. All other requests fall through to next.
+func subdomainMiddleware(sr *router.SandboxRouter, next http.Handler) http.Handler {
+	suffix := "." + config.Cfg.SandboxProxyDomain
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := r.Host
+		if idx := strings.LastIndex(host, ":"); idx != -1 {
+			host = host[:idx]
+		}
+		if strings.HasSuffix(host, suffix) {
+			sr.SubdomainServeHTTP(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func wrapperHandler(w http.ResponseWriter, r *http.Request, f func(*http.Request) (interface{}, error)) {

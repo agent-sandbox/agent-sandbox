@@ -4,6 +4,11 @@ export type ApiEnvelope<T> = {
   error?: string
 }
 
+export type ServerInfo = {
+  proxyDomain: string
+  version: string
+}
+
 export type Sandbox = {
   name?: string
   template?: string
@@ -19,6 +24,7 @@ export type Sandbox = {
   cpu_limit?: string
   memory_limit?: string
   metadata?: Record<string, string>
+  extra_ports?: number[]
 }
 
 export type CreateSandboxRequest = {
@@ -53,6 +59,9 @@ export type Template = {
   metadata?: Record<string, string>
   noStartupProbe?: boolean
   args?: string[]
+  extraPorts?: number[]
+  envVars?: Record<string, string>
+  shell?: string
   resources?: TemplateResources
   pool?: TemplatePool
   description?: string
@@ -192,3 +201,24 @@ export type SandboxEventsData = {
   items: SandboxEventItem[]
   fetchedAt: string
 }
+
+export type TrafficFlow = {
+  type: 'flow' | 'error'
+  timestamp: number
+  method?: string
+  url: string
+  host?: string
+  path?: string
+  status?: number
+  req_size?: number
+  res_size?: number
+  req_body?: string
+  res_body?: string
+  req_headers?: Record<string, string>
+  res_headers?: Record<string, string>
+  content_type?: string
+  duration_ms?: number
+  message?: string
+}
+
+export type TrafficWSServerMessage = TrafficFlow

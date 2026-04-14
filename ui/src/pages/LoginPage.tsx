@@ -37,7 +37,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-base-200 p-4 lg:p-6">
-      <div className="mx-auto mt-16 w-full max-w-md rounded-box border border-base-300 bg-base-100 p-20 shadow-sm">
+      <div className="mx-auto mt-16 w-full max-w-md rounded-box border border-base-300 bg-base-100 p-8 sm:p-20 shadow-sm">
         <div className="mb-6 text-center">
           <h1 className="text-xl font-semibold">Agent Sandbox</h1>
           <p className="m-2">Dashboard</p>
@@ -52,10 +52,10 @@ export default function LoginPage() {
                 </label>
             </div>
             <div className="mt-3 mb-10">
-                <input
+                    <input
                     id="api-token"
                     type="password"
-                    className="input input-bordered input-sm"
+                    className="input input-bordered input-sm w-full"
                     autoComplete="off"
                     value={token}
                     onChange={(event) => setToken(event.target.value)}

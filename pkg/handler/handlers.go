@@ -17,6 +17,7 @@
 package handler
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -439,10 +440,16 @@ func (a *Handler) StreamSandboxTerminalWS(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if _, err := a.controller.Get(name); err != nil {
+	sb, err := a.controller.Get(name)
+	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		Err(w, fmt.Sprintf("sandbox %s not found", name))
 		return
+	}
+
+	shellCmd := defaultInteractiveShellCommand()
+	if sb.TemplateObj != nil && sb.TemplateObj.Shell != "" {
+		shellCmd = []string{sb.TemplateObj.Shell}
 	}
 
 	conn, err := terminalWSUpgrader.Upgrade(w, r, nil)
@@ -475,7 +482,7 @@ func (a *Handler) StreamSandboxTerminalWS(w http.ResponseWriter, r *http.Request
 	writer := &terminalWSStreamWriter{send: send}
 
 	go func() {
-		err := a.controller.StreamSandboxTerminal(ctx, name, defaultInteractiveShellCommand(), reader, writer, resizeCh, func(session *sandbox.SandboxTerminalSession) {
+		err := a.controller.StreamSandboxTerminal(ctx, name, shellCmd, reader, writer, resizeCh, func(session *sandbox.SandboxTerminalSession) {
 			if sendErr := send(SandboxTerminalWSMessage{Type: "ready", Data: fmt.Sprintf("connected to %s/%s", session.Pod, session.Container)}); sendErr != nil {
 				klog.Warningf("failed to send ready message for sandbox %s: %v", name, sendErr)
 				cancel()
@@ -551,6 +558,58 @@ func (a *Handler) StreamSandboxTerminalWS(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// StreamSandboxTrafficWS streams mitmproxy JSON log lines from the mitmproxy
+// sidecar container as WebSocket messages.
+// Route: GET /api/v1/traffic/sandbox/{name}/ws
+func (a *Handler) StreamSandboxTrafficWS(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimSpace(r.PathValue("name"))
+	if name == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		Err(w, "sandbox name is required")
+		return
+	}
+
+	sb, err := a.controller.Get(name)
+	if err != nil || sb == nil {
+		w.WriteHeader(http.StatusNotFound)
+		Err(w, fmt.Sprintf("sandbox %s not found", name))
+		return
+	}
+
+	if sb.Metadata["mitm"] != "true" {
+		w.WriteHeader(http.StatusBadRequest)
+		Err(w, "sandbox was not started with mitm=true metadata")
+		return
+	}
+
+	conn, err := terminalWSUpgrader.Upgrade(w, r, nil)
+	if err != nil {
+		klog.Errorf("failed to upgrade websocket for sandbox %s traffic: %v", name, err)
+		return
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	stream, err := a.controller.StreamContainerLogs(ctx, name, "mitmproxy")
+	if err != nil {
+		_ = conn.WriteJSON(map[string]string{"type": "error", "message": err.Error()})
+		return
+	}
+	defer stream.Close()
+
+	scanner := bufio.NewScanner(stream)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) > 0 && line[0] == '{' {
+			if err := conn.WriteMessage(websocket.TextMessage, line); err != nil {
+				return
+			}
+		}
+	}
+}
+
 func (a *Handler) ExecuteSandboxTerminal(r *http.Request) (interface{}, error) {
 	name := r.PathValue("name")
 	if name == "" {
@@ -575,9 +634,30 @@ func (a *Handler) ExecuteSandboxTerminal(r *http.Request) (interface{}, error) {
 	return result, nil
 }
 
+func (a *Handler) DetectSandboxShell(r *http.Request) (interface{}, error) {
+	name := r.PathValue("name")
+	if name == "" {
+		return nil, fmt.Errorf("sandbox name is required")
+	}
+
+	shell, err := a.controller.DetectShell(name)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{"shell": shell}, nil
+}
+
 // ------------------------------------------------------
 // Config handlers
 // ------------------------------------------------------
+
+func (a *Handler) GetServerInfo(r *http.Request) (interface{}, error) {
+	return map[string]string{
+		"proxyDomain": config.Cfg.SandboxProxyDomain,
+		"version":     config.Version,
+	}, nil
+}
 
 func (a *Handler) GetTemplatesConfig(r *http.Request) (interface{}, error) {
 	return config.Cfg.ReadTemplatesFromCM()

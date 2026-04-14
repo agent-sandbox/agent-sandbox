@@ -295,8 +295,16 @@ func (pm *PoolManager) adaptReplicasetToSandbox(rs *v1.ReplicaSet, sb *Sandbox) 
 	anns["sandbox-data"] = string(raw)
 	rsCopy.SetAnnotations(anns)
 
+	// Re-render pod spec from template so metadata-driven features (e.g. mitm) are applied
+	freshRS, err := buildReplicaSet(sb)
+	if err != nil {
+		klog.Warningf("failed to re-render pod spec for sandbox %s, proceeding without update: %v", sb.Name, err)
+	} else {
+		rsCopy.Spec.Template.Spec = freshRS.Spec.Template.Spec
+	}
+
 	// Update the ReplicaSet in Kubernetes
-	_, err := pm.client.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Update(context.TODO(), rsCopy, v1meta.UpdateOptions{})
+	_, err = pm.client.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Update(context.TODO(), rsCopy, v1meta.UpdateOptions{})
 
 	if err != nil {
 		sb.ID = originalID

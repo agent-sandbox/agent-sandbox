@@ -15,7 +15,7 @@ Shell commands etc. with stateful, long-running, multi-session and multi-tenant.
 
 <div align="center">
 <h3>Agent-Sandbox UI</h3> 
-<div>including Sandbox Management, Pool Management, Template Management and Files, Logs, Terminal access Tools for Sandbox etc. <br><br/> UI path is <a href="https://agent-sandbox.domain.com/ui">https://agent-sandbox.domain.com/ui</a>.   
+<div>including Sandbox Management, Pool Management, Template Management and Files, Logs, Terminal, Traffic Monitor access Tools for Sandbox etc. <br><br/> UI path is <a href="https://agent-sandbox.domain.com/ui">https://agent-sandbox.domain.com/ui</a>.   
 <br/>
   Default UI admin login token:  <b>sys-2492a85b10ed4cb083b2c76b181eac96</b>,  config user tokens by env variable <b>API_TOKENS_RAW</b> e.g. user1-2492a85b10ed4cb083b2c76b181eac00,user2-2492a85b10ed4cb083b2c76b181eac01 . 
 </div>
@@ -89,6 +89,7 @@ flowchart TD
 - **Enterprise-Grade** - Support multiple Sandbox lifecycle manage for each tenant or session, allowing Agents to run different tasks simultaneously without interference for different tenant or session.
 - **Cloud-Native** - Leverages Kubernetes built to run in cloud environments, leveraging the benefits of cloud infrastructure such as scalability, flexibility, resilience and efficient resource management.
 - **Fast and Lightweight** - Designed to be lightweight and fast, minimizing Kubernetes's objects to deploy. easy to use and maintain.
+- **Traffic Monitor** - Live HTTP/HTTPS traffic inspection per sandbox via a mitmproxy sidecar, streamed in real-time to the UI.
 
 # Quick Start
 
@@ -287,6 +288,284 @@ print(response.text)
 }
 ```
 
+
+# Sandbox Proxy Routing
+
+When a sandbox runs a web application, Agent-Sandbox can proxy HTTP traffic directly to the sandbox pod. Two routing strategies are available — choose based on the complexity of the app being served.
+
+## Option 1 — Path-based Proxy (built-in, zero config)
+
+Every sandbox is accessible at:
+
+```
+https://agent-sandbox.your-host.com/sandbox/{sandbox-name}/
+```
+
+The server strips the `/sandbox/{name}` prefix before forwarding the request to the pod, and automatically injects a `<base href="/sandbox/{name}/">` tag into every HTML response so that relative asset paths resolve correctly through the proxy.
+
+**Best for:** simple UIs and static HTML apps that do not use JavaScript `fetch()` calls with absolute paths.
+
+**Limitations:** JavaScript-side requests using absolute paths (e.g. `fetch('/api/data')`) and WebSocket connections will not resolve through the proxy prefix. For those, use Option 2.
+
+No configuration required — this proxy is always active.
+
+---
+
+## Option 2 — Subdomain-based Proxy (full compatibility)
+
+Each sandbox is exposed on its own subdomain:
+
+```
+https://{sandbox-name}.s.your-host.com/
+```
+
+The request is forwarded to the pod unchanged — no path stripping, no HTML rewriting. The app receives requests at `/` and all paths resolve naturally, including JS `fetch()` calls and WebSockets.
+
+**Best for:** full SPAs, Next.js / Vite apps, Jupyter, code-server, and anything that uses WebSocket connections or absolute API paths.
+
+### Prerequisites
+
+1. **DNS** — Add a wildcard A record pointing to the same IP as your Agent-Sandbox host:
+
+   | Type | Name | Content |
+   |------|------|---------|
+   | A | `*.s` | `<your server IP>` |
+
+2. **TLS** — Add `*.s.your-host.com` to your wildcard certificate's `dnsNames`:
+
+   ```yaml
+   spec:
+     dnsNames:
+       - "*.your-host.com"
+       - "*.s.your-host.com"   # add this
+   ```
+
+3. **Ingress / Gateway** — Add a route that matches `*.s.your-host.com` and forwards to the Agent-Sandbox service.
+
+   **Nginx Ingress example:**
+   ```yaml
+   apiVersion: networking.k8s.io/v1
+   kind: Ingress
+   metadata:
+     name: agent-sandbox-wildcard
+   spec:
+     ingressClassName: nginx
+     tls:
+       - hosts:
+           - "*.s.your-host.com"
+         secretName: wildcard-cert
+     rules:
+       - host: "*.s.your-host.com"
+         http:
+           paths:
+             - path: /
+               pathType: Prefix
+               backend:
+                 service:
+                   name: agent-sandbox
+                   port:
+                     number: 80
+   ```
+
+   **Cilium / Gateway API example:**
+   ```yaml
+   apiVersion: gateway.networking.k8s.io/v1
+   kind: HTTPRoute
+   metadata:
+     name: agent-sandbox-wildcard
+   spec:
+     parentRefs:
+       - name: <your-gateway-name>
+         namespace: <your-gateway-namespace>
+     hostnames:
+       - "*.s.your-host.com"
+     rules:
+       - matches:
+           - path:
+               type: PathPrefix
+               value: /
+         backendRefs:
+           - name: agent-sandbox
+             port: 80
+   ```
+
+4. **Enable in Agent-Sandbox** — Set the `SANDBOX_PROXY_DOMAIN` environment variable on the Agent-Sandbox deployment:
+
+   ```yaml
+   env:
+     - name: SANDBOX_PROXY_DOMAIN
+       value: "s.your-host.com"
+   ```
+
+   When this variable is set, any request whose `Host` header matches `*.s.your-host.com` is routed directly to the corresponding sandbox pod. When left empty (default), subdomain routing is disabled and only Option 1 is active.
+
+### How the sandbox name is resolved
+
+The sandbox name (and optional port) are extracted from the first label of the hostname:
+
+```
+sbx-myapp-abc123.s.your-host.com          → sandbox: sbx-myapp-abc123, port: default
+sbx-myapp-abc123-6080.s.your-host.com     → sandbox: sbx-myapp-abc123, port: 6080
+```
+
+Encoding the port in the subdomain ensures that every request the browser makes — HTML, assets, API calls, WebSocket upgrades — all reach the correct port automatically. This is the recommended approach for sandboxes that expose multiple ports (e.g. a noVNC server on `6080` alongside an API on `8080`).
+
+The name must match an existing running sandbox. If no pod is found for that name, the proxy returns `502 Bad Gateway`.
+
+---
+
+## Comparison
+
+| | Path proxy | Subdomain proxy |
+|---|---|---|
+| URL pattern | `/sandbox/{name}/` | `{name}.s.your-host.com` |
+| HTML asset loading | fixed via `<base>` tag | native |
+| JS `fetch('/api/...')` | broken | works |
+| WebSockets | broken | works |
+| Cookie scope | shared host | isolated per sandbox |
+| DNS / infra changes | none | wildcard DNS + cert |
+| Config required | none | `SANDBOX_PROXY_DOMAIN` env var |
+
+Both options can run simultaneously. Path proxy serves as a fallback for simple apps; subdomain proxy handles everything else.
+
+---
+
+# Traffic Monitor
+
+Agent-Sandbox includes a live HTTP/HTTPS traffic inspector that shows every request a sandbox makes, in real time.
+
+## How it works
+
+When a sandbox is started with `metadata.mitm=true`, one init container and one sidecar are injected into its pod:
+
+1. **`mitm-cert-gen`** (init container) — generates a mitmproxy CA certificate into a shared `emptyDir` volume, creates a combined CA bundle (system CAs + mitmproxy CA), and writes a Python `sitecustomize.py` that patches `certifi` to trust the mitmproxy CA. The volume is then mounted read-only into the sandbox container at `/mitm-ca`.
+2. **`mitmproxy`** sidecar — installs `iptables` and redirects all outbound TCP traffic on ports 80 and 443 (from any UID other than its own) to `mitmdump` running in transparent mode on port 8877, using a Python addon (`logger.py`) to emit JSON log lines to stdout.
+
+The backend tails those JSON lines from the pod logs and streams them over a WebSocket (`GET /api/v1/traffic/sandbox/{name}/ws`). The UI Traffic page connects to that socket and renders a live, color-coded table of flows.
+
+## One-time cluster setup
+
+Apply the addon ConfigMap once per cluster (same namespace as your sandboxes):
+
+```bash
+kubectl apply -n agent-sandbox -f - <<'EOF'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-sandbox-mitm-addon
+  namespace: agent-sandbox
+data:
+  logger.py: |
+    import json, time
+    from mitmproxy import http
+
+    MAX_BODY = 10240  # 10 KB cap per body
+
+    def _decode(data: bytes) -> str:
+        if not data:
+            return ""
+        return data[:MAX_BODY].decode("utf-8", errors="replace")
+
+    class TrafficLogger:
+        def response(self, flow: http.HTTPFlow) -> None:
+            entry = {
+                "type": "flow",
+                "timestamp": flow.request.timestamp_start,
+                "method":    flow.request.method,
+                "url":       flow.request.pretty_url,
+                "host":      flow.request.pretty_host,
+                "path":      flow.request.path,
+                "status":    flow.response.status_code,
+                "req_size":  len(flow.request.content or b""),
+                "res_size":  len(flow.response.content or b""),
+                "req_body":  _decode(flow.request.content),
+                "res_body":  _decode(flow.response.content),
+                "req_headers": dict(flow.request.headers),
+                "res_headers": dict(flow.response.headers),
+                "content_type": flow.response.headers.get("content-type", ""),
+                "duration_ms": round(
+                    (flow.response.timestamp_end - flow.request.timestamp_start) * 1000
+                ),
+            }
+            print(json.dumps(entry), flush=True)
+
+        def error(self, flow: http.HTTPFlow) -> None:
+            msg = str(flow.error)
+            if "Client disconnected" in msg:
+                return  # suppress noisy TCP disconnect events
+            entry = {
+                "type":      "error",
+                "timestamp": time.time(),
+                "url":       flow.request.pretty_url if flow.request else "",
+                "message":   msg,
+            }
+            print(json.dumps(entry), flush=True)
+
+    addons = [TrafficLogger()]
+EOF
+```
+
+## Enable traffic monitoring for a sandbox
+
+Pass `mitm=true` in the sandbox metadata at creation time:
+
+```shell
+curl -X POST /api/v1/sandbox \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"my-sandbox","metadata":{"mitm":"true"}}'
+```
+
+Then open **Traffic** in the sidebar of the UI and select the sandbox. All outbound HTTP/HTTPS requests will appear as a live, color-coded table (green = 2xx, yellow = 3xx, orange = 4xx, red = 5xx).
+
+## HTTPS decryption
+
+**Python and Node.js HTTPS is decrypted automatically.** When `mitm=true` is set, the sandbox template injects the following into the sandbox container at startup:
+
+| Mechanism | Covers |
+|---|---|
+| `REQUESTS_CA_BUNDLE=/mitm-ca/combined-ca.pem` | Python `requests`, `httpx`, etc. |
+| `SSL_CERT_FILE=/mitm-ca/combined-ca.pem` | OpenSSL-linked tools (`curl`, etc.) |
+| `NODE_EXTRA_CA_CERTS=/mitm-ca/mitmproxy-ca-cert.pem` | Node.js TLS |
+| `NPM_CONFIG_CAFILE=/mitm-ca/combined-ca.pem` | npm |
+| `PYTHONPATH=/mitm-ca` (`sitecustomize.py`) | Python `certifi`-based libraries |
+| `/mitm-ca/bin` prepended to `PATH` | `node`/`npm`/`npx` wrapper scripts |
+| `/etc/ssl/certs/mitmproxy-ca-cert.pem` (subPath mount) | Go (`crypto/tls` reads all `.pem` files in that directory) |
+
+No extra configuration is needed for these runtimes — full request/response bodies appear automatically in the traffic table.
+
+### Other languages (Go, Rust, Java, …)
+
+Languages that read from the OS trust store do not pick up the env vars above. However, Go's `crypto/tls` reads every `.pem` file in `/etc/ssl/certs/` — not just the bundle file. The sandbox template mounts the mitmproxy CA cert directly into that directory via a Kubernetes `subPath` volume mount, so **Go is also covered automatically** with no extra steps.
+
+For Rust (`rustls`) and Java, which use their own bundled CA stores and don't read the system directory, HTTPS flows still appear in the traffic table as `CONNECT` tunnel entries — destination host and timing are visible, but not the decrypted content. To fix those you would need to add the CA to the runtime's own trust store in your image.
+
+## WebSocket API
+
+```
+GET /api/v1/traffic/sandbox/{name}/ws?api_key=<token>
+```
+
+Each frame is a JSON object:
+
+```json
+{
+  "type": "flow",
+  "timestamp": 1712000000.123,
+  "method": "POST",
+  "url": "https://api.example.com/data",
+  "status": 200,
+  "req_size": 512,
+  "res_size": 1234,
+  "req_body": "{\"key\":\"value\"}",
+  "res_body": "{\"result\":\"ok\"}",
+  "content_type": "application/json",
+  "duration_ms": 84
+}
+```
+
+Error frames have `"type": "error"` with a `"message"` field. Returns HTTP `400` if the sandbox was not started with `mitm=true`.
+
+---
 
 # License
 

@@ -1,7 +1,7 @@
 import { CSSProperties, ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { createSandbox, deleteSandbox, getSandboxMetrics, listSandboxes } from '../lib/api/sandbox'
+import { createSandbox, deleteSandbox, getSandboxMetrics, getServerInfo, listSandboxes } from '../lib/api/sandbox'
 import type { CreateSandboxRequest, Sandbox, SandboxMetricsItem } from '../lib/api/types'
 
 type CreateFormState = {
@@ -249,9 +249,31 @@ function renderMemoryCell(metrics: SandboxMetricsState | undefined, sandbox: San
   )
 }
 
+function buildSandboxUrl(sandbox: Sandbox, proxyDomain: string): { href: string; label: string }[] {
+  const name = sandbox.name ?? ''
+  const links: { href: string; label: string }[] = []
+
+  if (proxyDomain) {
+    // default port link (no port suffix in subdomain)
+    links.push({ href: `https://${name}.${proxyDomain}/`, label: `open` })
+    // extra ports
+    for (const port of sandbox.extra_ports ?? []) {
+      links.push({ href: `https://${name}-${port}.${proxyDomain}/`, label: `:${port}` })
+    }
+  } else {
+    links.push({ href: `/sandbox/${name}/`, label: 'open' })
+    for (const port of sandbox.extra_ports ?? []) {
+      links.push({ href: `/sandbox/${name}/?port=${port}`, label: `:${port}` })
+    }
+  }
+
+  return links
+}
+
 export default function SandboxesPage() {
   const navigate = useNavigate()
   const [sandboxes, setSandboxes] = useState<Sandbox[]>([])
+  const [proxyDomain, setProxyDomain] = useState('')
   const [isListLoading, setIsListLoading] = useState(false)
   const [isCreateSubmitting, setIsCreateSubmitting] = useState(false)
   const [deletingName, setDeletingName] = useState<string | null>(null)
@@ -304,6 +326,16 @@ export default function SandboxesPage() {
   useEffect(() => {
     void refreshSandboxes()
   }, [refreshSandboxes])
+
+  useEffect(() => {
+    void getServerInfo().then((info) => {
+      if (info.proxyDomain) {
+        setProxyDomain(info.proxyDomain)
+      }
+    }).catch(() => {
+      // non-critical, fall back to path proxy links
+    })
+  }, [])
 
   useEffect(() => {
     if (!isAutoRefresh) {
@@ -680,13 +712,14 @@ export default function SandboxesPage() {
                         <tr key={sandboxName || sandbox.id || `sandbox-${index}`}>
                           <td>{index + 1}</td>
                           <td className="font-medium">
-                            <a className="link link-hover link-success" href={`/sandbox/${sandbox.name}/health`} target="_blank" rel="noreferrer">
-                              {sandbox.name || '-'}
-                            </a>
-                            <div className="text-xs text-base-content/40 font-normal">
-                              <a className="link link-hover" href={`/sandboxes/router/${sandbox.id}/${sandbox.port}/health`} target="_blank" rel="noreferrer">
-                                {sandbox.id || '-'}
-                              </a>
+                            <div>{sandbox.name || '-'}</div>
+                            <div className="text-xs text-base-content/40 font-normal">{sandbox.id || '-'}</div>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {buildSandboxUrl(sandbox, proxyDomain).map(({ href, label }) => (
+                                <a key={href} className="badge badge-xs badge-outline link link-hover" href={href} target="_blank" rel="noreferrer">
+                                  {label}
+                                </a>
+                              ))}
                             </div>
                           </td>
                           <td>{sandbox.template || '-'}</td>

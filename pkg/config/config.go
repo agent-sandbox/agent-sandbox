@@ -61,6 +61,9 @@ type Template struct {
 	Metadata       map[string]string `json:"metadata" required:"false"`
 	NoStartupProbe bool              `json:"noStartupProbe" required:"false"`
 	Args           []string          `json:"args" required:"false"`
+	EnvVars        map[string]string `json:"envVars" required:"false"`
+	Shell          string            `json:"shell" required:"false"`
+	ExtraPorts     []int             `json:"extraPorts" required:"false"`
 	Resources      Resources         `json:"resources"  required:"false"`
 	Pool           TemplatePool      `json:"pool" required:"false"`
 	Description    string            `json:"description" required:"false"`
@@ -89,6 +92,11 @@ type Config struct {
 	SandboxDefaultTemplate     string `split_words:"true" default:"aio" required:"false"`
 
 	ConfigmapName string `split_words:"true" default:"agent-sandbox" required:"false"`
+
+	// SandboxProxyDomain enables subdomain-based routing for proxied sandbox web apps.
+	// When set (e.g. "sandbox.yourdomain.com"), requests arriving on {name}.{domain}
+	// are proxied directly to the sandbox pod without path prefix stripping.
+	SandboxProxyDomain string `split_words:"true" default:"" required:"false"`
 }
 
 func InitConfig() *Config {
@@ -339,6 +347,11 @@ func GetTemplateByName(name string) (*Template, error) {
 				Type:           t.Type,
 				NoStartupProbe: t.NoStartupProbe,
 				Description:    t.Description,
+				Metadata:       t.Metadata,
+				Args:           t.Args,
+				EnvVars:        t.EnvVars,
+				Shell:          t.Shell,
+				ExtraPorts:     t.ExtraPorts,
 			}
 			return dynT, nil
 		}

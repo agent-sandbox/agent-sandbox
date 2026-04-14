@@ -701,6 +701,28 @@ func (s *Controller) GetSandboxLogs(name string, tailLines int64) (*SandboxLogsR
 	}, nil
 }
 
+func (s *Controller) StreamContainerLogs(ctx context.Context, sandboxName, container string) (io.ReadCloser, error) {
+	pods := s.GetInstances(sandboxName)
+	if len(pods) == 0 {
+		return nil, fmt.Errorf("sandbox %s has no pods", sandboxName)
+	}
+
+	selected := pods[0]
+	for _, pod := range pods {
+		if pod.Status.Phase == v1core.PodRunning {
+			selected = pod
+			break
+		}
+	}
+
+	options := &v1core.PodLogOptions{
+		Container: container,
+		Follow:    true,
+	}
+
+	return s.kclient.CoreV1().Pods(config.Cfg.SandboxNamespace).GetLogs(selected.Name, options).Stream(ctx)
+}
+
 func (s *Controller) ExecuteSandboxTerminal(name string, command []string) (*SandboxTerminalResult, error) {
 	if len(command) == 0 {
 		return nil, fmt.Errorf("command is required")
@@ -796,4 +818,25 @@ func (s *Controller) SandboxMetrics(names []string) (data map[string]SandboxMetr
 
 func (s *Controller) ExecCommandInPod(name string, cmd []string) (output string, outputErr string, err error) {
 	return utils.ExecCommand(s.kclient, s.kcfg, config.Cfg.SandboxNamespace, name, "sandbox", cmd)
+}
+
+var candidateShells = []string{
+	"sh", "bash", "/bin/sh", "/bin/bash", "/usr/bin/sh", "/usr/bin/bash", "/busybox/sh",
+}
+
+func (s *Controller) DetectShell(name string) (string, error) {
+	selected, err := s.selectSandboxPod(name)
+	if err != nil {
+		return "", err
+	}
+
+	for _, shell := range candidateShells {
+		cmd := []string{shell, "-c", "echo ok"}
+		out, _, execErr := utils.ExecCommand(s.kclient, s.kcfg, config.Cfg.SandboxNamespace, selected.Name, "sandbox", cmd)
+		if execErr == nil && strings.TrimSpace(out) == "ok" {
+			return shell, nil
+		}
+	}
+
+	return "", fmt.Errorf("no usable shell found in container")
 }
