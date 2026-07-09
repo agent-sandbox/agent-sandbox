@@ -205,7 +205,9 @@ func validAndRestValueOfSandbox(sb *Sandbox) error {
 
 func (sb *Sandbox) ToString() string {
 	sbTmp := *sb
-	sbTmp.User = sbTmp.User[:20]
+	if len(sbTmp.User) > 20 {
+		sbTmp.User = sbTmp.User[:20]
+	}
 	sbStr, _ := json.Marshal(sbTmp)
 	return string(sbStr)
 }
