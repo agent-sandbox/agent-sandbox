@@ -192,6 +192,28 @@ export type SandboxEventsData = {
   fetchedAt: string
 }
 
+export type SandboxCommandAuditItem = {
+  id: number
+  tenant_id?: string
+  sandbox_id?: string
+  sandbox_name: string
+  source: string
+  command_text: string
+  cwd?: string
+  observed_at: string
+  detail?: string
+}
+
+export type SandboxCommandAuditData = {
+  items: SandboxCommandAuditItem[]
+  fetchedAt: string
+}
+
+export type SandboxCommandAuditSandboxesData = {
+  items: string[]
+  fetchedAt: string
+}
+
 export type RateLimitDefaultConfig = {
   enabled?: boolean
   max_concurrency: number
