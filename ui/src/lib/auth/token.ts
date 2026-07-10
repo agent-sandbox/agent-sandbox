@@ -11,7 +11,7 @@ export type NavKey =
   | 'terminal'
   | 'files'
   | 'templatesConfig'
-  | 'sandboxTemplateConfig'
+  | 'sandboxBlueprintConfig'
   | 'runtimeConfig'
   | 'events'
 

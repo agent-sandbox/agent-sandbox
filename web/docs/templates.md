@@ -6,10 +6,10 @@ icon: lucide/layout-template
 
 Templates define the types of sandboxes available in Agent-Sandbox. Each template specifies a container image, resources, and optional pool configuration.
 
-Together with the [sandbox-template](sandbox-template.md), a template produces a concrete Kubernetes ReplicaSet:
+Together with the [blueprint](blueprint.md), a template produces a concrete Kubernetes ReplicaSet:
 
 ```
-sandbox-template (sandbox.yaml) + template (templates.json entry) = K8s ReplicaSet
+blueprint (sandbox.yaml) + template (templates.json entry) = K8s ReplicaSet
 ```
 
 ---
@@ -107,7 +107,7 @@ Use dynamic templates when you have a family of images following a consistent na
 | `description` | string | yes | Human-readable description |
 | `resources` | object | no | CPU/memory requests and limits |
 | `pool` | object | no | Pool configuration for warm sandboxes |
-| `noStartupProbe` | bool | no | Disable TCP startup probe in sandbox-template |
+| `noStartupProbe` | bool | no | Disable TCP startup probe in blueprint |
 | `args` | array | no | Default container arguments |
 | `metadata` | object | no | Custom key-value pairs merged into sandbox metadata |
 
@@ -294,7 +294,7 @@ flowchart TD
     J --> K
     
     K --> L[Build Sandbox struct]
-    L --> M[Render sandbox-template]
+    L --> M[Render blueprint]
     M --> N[Create ReplicaSet]
 ```
 

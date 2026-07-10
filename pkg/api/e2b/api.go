@@ -74,5 +74,6 @@ func (a *Handler) RegisterHandlersWithOptions(mux *http.ServeMux) {
 
 	mux.HandleFunc(fmt.Sprintf("POST %s/sandboxes/{sandboxID}/connect", BaseURL), a.ConnectSandbox)
 	mux.HandleFunc(fmt.Sprintf("POST %s/sandboxes/{sandboxID}/snapshots", BaseURL), a.SnapshotSandbox)
+	mux.HandleFunc(fmt.Sprintf("DELETE %s/sandboxes/{sandboxID}/snapshots", BaseURL), a.DeleteSnapshotSandbox)
 
 }

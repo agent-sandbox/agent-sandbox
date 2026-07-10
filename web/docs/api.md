@@ -276,8 +276,8 @@ GET /api/v1/events
 ```
 GET  /api/v1/config/templates              # Get templates config
 POST /api/v1/config/templates              # Save templates config
-GET  /api/v1/config/sandbox-template       # Get sandbox-template config
-POST /api/v1/config/sandbox-template       # Save sandbox-template config
+GET  /api/v1/config/blueprint              # Get sandbox blueprint config
+POST /api/v1/config/blueprint              # Save sandbox blueprint config
 ```
 
 ## Pool API

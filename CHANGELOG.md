@@ -59,3 +59,9 @@ V0.7.0 - 2026-06-24
 - Add: Sandbox Snapshot feature, which can snapshot the commands started in a sandbox and automatically re-start them on resume.
 - Add: Telemetry reporting feature, supporting reporting of sandbox creation, destruction, error, and other log data, making it easier to monitor and analyze sandbox usage.
 --------------------------
+V0.8.0 - 2026-07-10
+- Add: Leader election for the Sandbox Controller to support multi-instance (HA) deployment. Pool replenishment and scaler runs only on the leader, while every replica keeps serving API and proxy traffic. 
+- Add: cluster status endpoint (`GET /api/v1/status`) return whole base info.
+- Add: Sandbox Snapshot SDK operations, e.g. `sbx.create_snapshot(); sbx.delete_snapshot()`; the snapshot content is returned when fetching sandbox info.
+- Change: rename Sandbox-Template to Sandbox-Blueprint to avoid confusion with the Templates concept.
+--------------------------

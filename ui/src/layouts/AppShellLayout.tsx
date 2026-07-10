@@ -20,12 +20,12 @@ export default function AppShellLayout() {
   const canViewTerminal = canAccessNav('terminal', token)
   const canViewFiles = canAccessNav('files', token)
   const canViewTemplatesConfig = canAccessNav('templatesConfig', token)
-  const canViewSandboxTemplateConfig = canAccessNav('sandboxTemplateConfig', token)
+  const canViewSandboxBlueprintConfig = canAccessNav('sandboxBlueprintConfig', token)
   const canViewRuntimeConfig = canAccessNav('runtimeConfig', token)
   const canViewEvents = canAccessNav('events', token)
 
   const hasSandboxTools = canViewLogs || canViewTerminal || canViewFiles
-  const hasSettings = canViewTemplatesConfig || canViewSandboxTemplateConfig || canViewRuntimeConfig || canViewEvents
+  const hasSettings = canViewTemplatesConfig || canViewSandboxBlueprintConfig || canViewRuntimeConfig || canViewEvents
 
   const tokenPreview = token ? `${token.substring(0, 10)}...` : 'N/A'
 
@@ -145,7 +145,7 @@ export default function AppShellLayout() {
                   <li>
                       <NavLink to="/config/runtime"
                                className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
-                          Runtime Config
+                          Runtime
                       </NavLink>
                   </li>
                 )}
@@ -153,15 +153,15 @@ export default function AppShellLayout() {
                   <li>
                       <NavLink to="/config/templates"
                                className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
-                          Templates Config
+                          Templates
                       </NavLink>
                   </li>
                 )}
-                {canViewSandboxTemplateConfig && (
+                {canViewSandboxBlueprintConfig && (
                   <li>
-                      <NavLink to="/config/sandbox-template"
+                      <NavLink to="/config/blueprint"
                                className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
-                          Sandbox-Template Config
+                          Sandbox-Blueprint
                       </NavLink>
                   </li>
                 )}

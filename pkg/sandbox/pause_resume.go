@@ -83,6 +83,20 @@ func (s *Controller) SandboxProcessSnapshot(sb *Sandbox) error {
 	return err
 }
 
+func (s *Controller) DeleteProcessSnapshot(sb *Sandbox) error {
+	rsCopy := sb.ReplicaSet.DeepCopy()
+	annotations := rsCopy.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+
+	annotations[AnnotationProcessSnapshot] = ""
+	rsCopy.SetAnnotations(annotations)
+
+	_, err := s.kclient.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Update(context.TODO(), rsCopy, v1meta.UpdateOptions{})
+	return err
+}
+
 func (s *Controller) Resume(sb *Sandbox, reason string) error {
 	if deriveSandboxStatus(sb.ReplicaSet) != Paused {
 		return nil

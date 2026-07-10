@@ -2,14 +2,14 @@
 icon: lucide/blocks
 ---
 
-# Sandbox Template
+# Blueprint
 
-Agent-Sandbox does not create Pods directly. Instead, it uses a Go template (`sandbox.yaml`) to dynamically generate a Kubernetes ReplicaSet for each sandbox. This template is called the **sandbox-template**.
+Agent-Sandbox does not create Pods directly. Instead, it uses a Go template (`sandbox.yaml`) to dynamically generate a Kubernetes ReplicaSet for each sandbox. This deployment template is called the **blueprint**.
 
-Together with a [template](#) definition (from `templates.json`), the sandbox-template produces a concrete sandbox ReplicaSet:
+Together with a [template](templates.md) definition (from `templates.json`), the blueprint produces a concrete sandbox ReplicaSet:
 
 ```
-sandbox-template (sandbox.yaml) + template (templates.json entry) = K8s ReplicaSet
+blueprint (sandbox.yaml) + template (templates.json entry) = K8s ReplicaSet
 ```
 
 ## Why ReplicaSet
@@ -19,7 +19,7 @@ Using ReplicaSet instead of bare Pod gives Agent-Sandbox:
 - **Lightweight**: No heavy CRD to install, uses built-in Kubernetes resources and controllers easy to understand and debug, important is that completely satisfy Sandbox's lifecycle management needs.
 - **Self-healing**: If a sandbox Pod dies, the ReplicaSet recreates it automatically
 - **Declarative state**: The sandbox's full configuration is stored in ReplicaSet annotations
-- **Extensibility**: Users can customize the sandbox-template to add volumes, sidecars, or node scheduling
+- **Extensibility**: Users can customize the blueprint to add volumes, sidecars, or node scheduling
 
 ### In the future
 - **HPA compatibility**: ReplicaSets are widely supported by Kubernetes features and tools, e.g. Horizontal Pod Autoscaler, etc.
@@ -32,7 +32,7 @@ Using ReplicaSet instead of bare Pod gives Agent-Sandbox:
 When a sandbox creation request arrives:
 
 1. The controller resolves the template, merges configuration, and builds a `Sandbox` struct
-2. The `Sandbox` struct is passed into the sandbox-template Go template
+2. The `Sandbox` struct is passed into the blueprint (a Go template)
 3. The rendered output is parsed as a Kubernetes ReplicaSet YAML
 4. The ReplicaSet is created in the target namespace
 
@@ -66,7 +66,7 @@ flowchart TB
         D[Build Sandbox struct]
     end
     
-    subgraph Rendering["Template Rendering"]
+    subgraph Rendering["Blueprint Rendering"]
         E[Load sandbox.yaml\nfrom ConfigMap]
         F[Execute Go template\nwith Sandbox struct]
         G[Parse YAML output]
@@ -85,9 +85,9 @@ flowchart TB
 
 ---
 
-## Template Structure
+## Blueprint Structure
 
-The sandbox-template is a standard Kubernetes ReplicaSet YAML with Go template variables. Below is the default template with annotations:
+The blueprint is a standard Kubernetes ReplicaSet YAML with Go template variables. Below is the default blueprint with annotations:
 
 ```yaml
 apiVersion: apps/v1
@@ -155,9 +155,9 @@ spec:
 
 ---
 
-## Template Variables
+## Blueprint Variables
 
-The sandbox-template receives a `SandboxKube` struct:
+The blueprint receives a `SandboxKube` struct:
 
 ```go
 type SandboxKube struct {
@@ -192,7 +192,7 @@ Full list of fields can be found in the `pkg/sandbox/sandbox.go` struct definiti
 
 ### Conditional Blocks
 
-The template supports Go conditionals and ranges:
+The blueprint supports Go conditionals and ranges:
 
 ```yaml
 {{if .Sandbox.Cmd}}
@@ -223,33 +223,35 @@ startupProbe:
 
 ## Hot Reload
 
-The sandbox-template is stored in a ConfigMap alongside template definitions:
+The blueprint is stored in a ConfigMap alongside template definitions:
 
 | ConfigMap Key | Content |
 |---------------|---------|
-| `config-sandbox-template` | Go template for ReplicaSet YAML |
+| `config-sandbox-template` | Go template (blueprint) for ReplicaSet YAML |
 | `config-templates` | JSON array of template definitions |
 
-The controller watches the ConfigMap and reloads the sandbox-template on change — no restart required.
+> The ConfigMap key `config-sandbox-template` keeps its original name for backward compatibility, even though the concept is now called a blueprint.
+
+The controller watches the ConfigMap and reloads the blueprint on change — no restart required.
 
 ---
 
 ## API Endpoints
 
-Manage the sandbox-template via REST API:
+Manage the blueprint via REST API:
 
 ```
-GET  /api/v1/config/sandbox-template   # Get current sandbox-template
-POST /api/v1/config/sandbox-template   # Update sandbox-template
+GET  /api/v1/config/blueprint   # Get current blueprint
+POST /api/v1/config/blueprint   # Update blueprint
 ```
 
-Also supports template management within the UI.
+Also supports blueprint management within the UI.
 
 ---
 
 ## Customization
 
-You can modify the sandbox-template to fit your infrastructure:
+You can modify the blueprint to fit your infrastructure:
 
 ### Volumes
 

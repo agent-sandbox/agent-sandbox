@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	sandboxProxyDialMaxAttempts = 6
-	sandboxProxyDialRetryDelay  = 500 * time.Millisecond
+	sandboxProxyDialMaxAttempts = 20
+	sandboxProxyDialRetryDelay  = 300 * time.Millisecond
 )
 
 func dialContextWithRetry(dialer *net.Dialer) func(context.Context, string, string) (net.Conn, error) {

@@ -57,7 +57,7 @@ Kubernetes namespace where sandbox pods and ReplicaSets are created.
 
 ### `CONFIGMAP_NAME`
 
-Name of the ConfigMap used to store templates and sandbox template configuration.
+Name of the ConfigMap used to store templates and sandbox blueprint configuration.
 
 - **Default:** `agent-sandbox`
 - **Example:** `my-sandbox-config`

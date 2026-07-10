@@ -233,7 +233,5 @@ export type RuntimeConfigPayload = {
 
 export type RuntimeConfigStatus = RuntimeConfigPayload & {
   config_map_key: string
-  api_tokens: string[]
-  api_tokens_count: number
   rate_limit_users: UserRateLimitConfig[]
 }

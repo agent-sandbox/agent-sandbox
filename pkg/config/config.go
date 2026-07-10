@@ -33,11 +33,14 @@ import (
 	"k8s.io/klog/v2"
 )
 
-const Version = "0.6.0"
+const Version = "0.8.0"
 
 var Cfg *Config
 var Templates []*Template
-var SandboxDeployTemplate string
+
+// SandboxBlueprint holds the sandbox blueprint: the Go-template ReplicaSet YAML
+// (config/sandbox.yaml) used to render each sandbox's ReplicaSet.
+var SandboxBlueprint string
 
 type RuntimeConfig struct {
 	SystemToken            *string          `split_words:"true" required:"false" json:"system_token,omitempty"`
@@ -65,7 +68,9 @@ type Config struct {
 	// witch Kubernetes namespace to create sandboxes Replicaset&Pod in
 	SandboxNamespace string `split_words:"true" default:"default" required:"false"`
 
-	SandboxTemplateFile string `split_words:"true" default:"config/sandbox.yaml" required:"false"`
+	// SandboxBlueprintFile is the local file path of the sandbox blueprint (the
+	// ReplicaSet Go-template YAML). It is only a bootstrap fallback.
+	SandboxBlueprintFile string `split_words:"true" default:"config/sandbox.yaml" required:"false"`
 
 	SandboxTemplatesConfigFile string `split_words:"true" default:"config/templates.json" required:"false"`
 	SandboxDefaultImage        string `split_words:"true" default:"ghcr.io/agent-infra/sandbox:latest" required:"false"`
@@ -328,6 +333,9 @@ func parseRateLimitUsers(rateLimitUsersRaw string) []UserRateLimitConfig {
 
 func (c *Config) CheckAndSaveConfigToConfigmap() {
 	templatesContent, err := c.ReadTemplatesFromCM()
+	if err != nil {
+		klog.Fatalf("Failed to read templates from configmap: %v", err)
+	}
 	if templatesContent == "" {
 		klog.Info("templates config is empty, will load from local file system")
 
@@ -348,28 +356,28 @@ func (c *Config) CheckAndSaveConfigToConfigmap() {
 		klog.Info("templates config already exists in configmap")
 	}
 
-	sandboxTemplateContent, err := c.ReadSandboxTemplateFromCM()
+	sandboxBlueprintContent, err := c.ReadSandboxBlueprintFromCM()
 	if err != nil {
-		klog.Fatalf("Failed to read sandbox template from configmap: %v", err)
+		klog.Fatalf("Failed to read sandbox blueprint from configmap: %v", err)
 	}
-	if sandboxTemplateContent == "" {
-		klog.Info("sandbox template config is empty, will load from local file system")
+	if sandboxBlueprintContent == "" {
+		klog.Info("sandbox blueprint config is empty, will load from local file system")
 
-		fileName := c.SandboxTemplateFile
+		fileName := c.SandboxBlueprintFile
 		content, readErr := os.ReadFile(fileName)
 		if readErr != nil {
-			klog.Fatalf("Failed to read sandbox template file %s error: %v", fileName, readErr)
+			klog.Fatalf("Failed to read sandbox blueprint file %s error: %v", fileName, readErr)
 		}
 
-		sandboxTemplateContent = string(content)
-		klog.Infof("Loaded sandbox template config from file %s", fileName)
+		sandboxBlueprintContent = string(content)
+		klog.Infof("Loaded sandbox blueprint config from file %s", fileName)
 
-		if err = c.SaveSandboxTemplateToCM(sandboxTemplateContent); err != nil {
-			klog.Fatalf("Failed to save sandbox template config to configmap, error: %v", err)
+		if err = c.SaveSandboxBlueprintToCM(sandboxBlueprintContent); err != nil {
+			klog.Fatalf("Failed to save sandbox blueprint config to configmap, error: %v", err)
 		}
-		klog.Info("Sandbox template config saved to configmap successfully")
+		klog.Info("Sandbox blueprint config saved to configmap successfully")
 	} else {
-		klog.Info("sandbox template config already exists in configmap")
+		klog.Info("sandbox blueprint config already exists in configmap")
 	}
 
 	runtimeConfigContent, err := c.ReadRuntimeConfigFromCM()
@@ -388,7 +396,6 @@ func (c *Config) CheckAndSaveConfigToConfigmap() {
 		klog.Info("Runtime config saved to configmap successfully")
 	} else {
 		klog.Info("runtime config already exists in configmap")
-		c.ApplyRuntimeConfigContent(runtimeConfigContent)
 	}
 
 }
@@ -466,7 +473,7 @@ func (c *Config) ReadTemplatesFromCM() (content string, err error) {
 	return existCm.Data[TemplatesConfigMapKey], nil
 }
 
-func (c *Config) SaveSandboxTemplateToCM(content string) error {
+func (c *Config) SaveSandboxBlueprintToCM(content string) error {
 	cmClient := c.KubeClient.CoreV1().ConfigMaps(c.SandboxNamespace)
 
 	existCm, err := cmClient.Get(context.TODO(), Cfg.ConfigmapName, metav1.GetOptions{})
@@ -478,7 +485,7 @@ func (c *Config) SaveSandboxTemplateToCM(content string) error {
 					Namespace: c.SandboxNamespace,
 				},
 				Data: map[string]string{
-					SandboxTemplateConfigMapKey: content,
+					SandboxBlueprintConfigMapKey: content,
 				},
 			}
 			_, createErr := cmClient.Create(context.TODO(), cm, metav1.CreateOptions{})
@@ -491,24 +498,24 @@ func (c *Config) SaveSandboxTemplateToCM(content string) error {
 	if existCm.Data == nil {
 		existCm.Data = map[string]string{}
 	}
-	existCm.Data[SandboxTemplateConfigMapKey] = content
+	existCm.Data[SandboxBlueprintConfigMapKey] = content
 	_, err = cmClient.Update(context.TODO(), existCm, metav1.UpdateOptions{})
 	return err
 }
 
-func (c *Config) ReadSandboxTemplateFromCM() (content string, err error) {
-	sandboxTemplateContent := ""
+func (c *Config) ReadSandboxBlueprintFromCM() (content string, err error) {
+	sandboxBlueprintContent := ""
 
 	existCm, err := c.KubeClient.CoreV1().ConfigMaps(c.SandboxNamespace).Get(context.TODO(), Cfg.ConfigmapName, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) {
-		klog.Info("sandbox template configmap not found, return empty content")
-		return sandboxTemplateContent, nil
+		klog.Info("sandbox blueprint configmap not found, return empty content")
+		return sandboxBlueprintContent, nil
 	} else if err != nil {
-		klog.Errorf("Failed to get ConfigMap for sandbox template config: %v", err)
-		return sandboxTemplateContent, err
+		klog.Errorf("Failed to get ConfigMap for sandbox blueprint config: %v", err)
+		return sandboxBlueprintContent, err
 	}
 
-	return existCm.Data[SandboxTemplateConfigMapKey], nil
+	return existCm.Data[SandboxBlueprintConfigMapKey], nil
 }
 
 func (c *Config) ReadRuntimeConfigFromCM() (content string, err error) {

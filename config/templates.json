@@ -20,7 +20,8 @@
       "memoryLimit": "1Gi"
     },
     "metadata": {
-      "runtimeClassName": "gvisor"
+      "runtimeClassName": "gvisor",
+      "shareDataNFS": "100.100.100.100"
     },
     "pool": {
       "size": 0,

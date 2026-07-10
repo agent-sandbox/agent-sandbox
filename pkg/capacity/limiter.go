@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"sync"
 
 	"github.com/agent-sandbox/agent-sandbox/pkg/config"
 	"k8s.io/klog/v2"
@@ -30,8 +29,13 @@ var ErrRateLimitExceeded = fmt.Errorf("rate limit exceeded: too many concurrent 
 
 var ErrCapacityExceeded = fmt.Errorf("capacity exceeded: maximum sandbox limit reached")
 
+// sandboxController is the slice of the sandbox controller we depend on. The
+// concurrency limit reads CountByUserInCreate (informer-backed) so that the
+// limit holds across replicas — we can't keep an in-memory counter in a
+// multi-instance deployment.
 type sandboxController interface {
-	CountByUser(user string) (int, error)
+	CountSandboxes(user string) (int, error)
+	CountByUserInCreate(user string) (int, error)
 	CountAllByUser() (map[string]int, error)
 }
 
@@ -50,14 +54,8 @@ func (e *LimitError) Error() string {
 	return e.Message
 }
 
-type UserLimiter struct {
-	mu    sync.Mutex
-	count int
-}
-
 type RateLimiter struct {
-	userLimiters sync.Map
-	controller   sandboxController
+	controller sandboxController
 }
 
 var GlobalLimiter *RateLimiter
@@ -67,6 +65,9 @@ func Init(controller sandboxController) {
 }
 
 func NewRateLimiter(controller sandboxController) *RateLimiter {
+	if controller == nil {
+		klog.Fatal("Rate limiter requires a non-nil sandbox controller")
+	}
 	klog.Info("Rate limiter initialized")
 	return &RateLimiter{controller: controller}
 }
@@ -109,17 +110,6 @@ func (rl *RateLimiter) getUserConfig(user string) (maxConcurrency, maxSandbox in
 	return
 }
 
-func (rl *RateLimiter) getOrCreateUserLimiter(user string) *UserLimiter {
-	val, ok := rl.userLimiters.Load(user)
-	if ok {
-		return val.(*UserLimiter)
-	}
-
-	limiter := &UserLimiter{}
-	actual, _ := rl.userLimiters.LoadOrStore(user, limiter)
-	return actual.(*UserLimiter)
-}
-
 func (rl *RateLimiter) CheckCapacity(user string) (bool, int, int, error) {
 	if !rl.Enabled() {
 		return false, 0, 0, nil
@@ -130,11 +120,7 @@ func (rl *RateLimiter) CheckCapacity(user string) (bool, int, int, error) {
 		return false, 0, 0, nil
 	}
 
-	if rl.controller == nil {
-		return false, 0, 0, fmt.Errorf("controller not initialized")
-	}
-
-	currentCount, err := rl.controller.CountByUser(user)
+	currentCount, err := rl.controller.CountSandboxes(user)
 	if err != nil {
 		return false, 0, 0, err
 	}
@@ -142,6 +128,15 @@ func (rl *RateLimiter) CheckCapacity(user string) (bool, int, int, error) {
 	return currentCount >= maxSandbox, maxSandbox, currentCount, nil
 }
 
+// TryAcquire checks whether the user is below their concurrency limit. The
+// "current count" is the number of RSs whose status is still Creating,
+// read from the informer cache — so the limit holds across all replicas
+// without an in-process counter.
+//
+// This is eventually consistent: two replicas hitting the check at the same
+// time can each see currentCount==max-1 and both admit a request, so the
+// effective limit may briefly exceed max by 1. That's acceptable for a soft
+// concurrency cap.
 func (rl *RateLimiter) TryAcquire(user string) (acquired bool, maxConcurrency int, currentCount int, err error) {
 	if !rl.Enabled() {
 		return true, 0, 0, nil
@@ -152,42 +147,15 @@ func (rl *RateLimiter) TryAcquire(user string) (acquired bool, maxConcurrency in
 		return true, 0, 0, nil
 	}
 
-	limiter := rl.getOrCreateUserLimiter(user)
-
-	limiter.mu.Lock()
-	defer limiter.mu.Unlock()
-
-	currentCount = limiter.count
+	currentCount, err = rl.controller.CountByUserInCreate(user)
+	if err != nil {
+		return true, maxConcurrency, 0, err
+	}
 
 	if currentCount >= maxConcurrency {
 		return false, maxConcurrency, currentCount, nil
 	}
-
-	limiter.count++
-	klog.Infof("Acquired concurrency slot for user=%s, count=%d/%d", user, limiter.count, maxConcurrency)
 	return true, maxConcurrency, currentCount, nil
-}
-
-func (rl *RateLimiter) Release(user string) {
-	if !rl.Enabled() {
-		return
-	}
-
-	val, ok := rl.userLimiters.Load(user)
-	if !ok {
-		return
-	}
-	limiter := val.(*UserLimiter)
-
-	limiter.mu.Lock()
-	defer limiter.mu.Unlock()
-
-	if limiter.count > 0 {
-		limiter.count--
-		klog.Infof("Released concurrency slot for user=%s, count=%d", user, limiter.count)
-	} else {
-		klog.Warningf("Release called but count already 0 for user=%s", user)
-	}
 }
 
 func (rl *RateLimiter) AcquireCreate(user string) (func(), error) {
@@ -219,7 +187,7 @@ func (rl *RateLimiter) AcquireCreate(user string) (func(), error) {
 		}
 	}
 
-	return func() { rl.Release(user) }, nil
+	return nil, nil
 }
 
 func (rl *RateLimiter) ConcurrencyStats(user string) (concurrencyActive int, concurrencyMax int) {
@@ -228,41 +196,14 @@ func (rl *RateLimiter) ConcurrencyStats(user string) (concurrencyActive int, con
 	}
 
 	concurrencyMax, _ = rl.getUserConfig(user)
-	if val, ok := rl.userLimiters.Load(user); ok {
-		limiter := val.(*UserLimiter)
-		limiter.mu.Lock()
-		concurrencyActive = limiter.count
-		limiter.mu.Unlock()
+	if n, err := rl.controller.CountByUserInCreate(user); err == nil {
+		concurrencyActive = n
 	}
 	return
 }
 
 func (rl *RateLimiter) CountAllByUser() (map[string]int, error) {
-	if rl.controller == nil {
-		return map[string]int{}, fmt.Errorf("controller not initialized")
-	}
 	return rl.controller.CountAllByUser()
-}
-
-func (rl *RateLimiter) Stats(user string) (concurrencyActive int, concurrencyMax int, sandboxCurrent int, sandboxMax int, err error) {
-	if !rl.Enabled() {
-		return 0, 0, 0, 0, nil
-	}
-
-	concurrencyMax, sandboxMax = rl.getUserConfig(user)
-
-	if val, ok := rl.userLimiters.Load(user); ok {
-		limiter := val.(*UserLimiter)
-		limiter.mu.Lock()
-		concurrencyActive = limiter.count
-		limiter.mu.Unlock()
-	}
-
-	if rl.controller != nil {
-		sandboxCurrent, err = rl.controller.CountByUser(user)
-	}
-
-	return
 }
 
 func (rl *RateLimiter) DefaultConfig() *config.RateLimitConfig {

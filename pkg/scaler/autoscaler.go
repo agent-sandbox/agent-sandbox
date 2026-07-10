@@ -46,6 +46,7 @@ func NewScaler(ctx context.Context, a *activator.Activator, c *sandbox.Controlle
 
 func (s *Scaler) RunScaling() {
 	// Periodically check for sandboxes to scale down
+	klog.Info("timeout and idle timeout  scaler started")
 	ticker := time.NewTicker(ScalingCheckInterval)
 	defer ticker.Stop()
 	for {

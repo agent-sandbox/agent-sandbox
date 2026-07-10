@@ -103,12 +103,11 @@ func stepForWindow(window time.Duration) time.Duration {
 
 // telemetryStatusData is the response of GET /api/v1/telemetry/status.
 type telemetryStatusData struct {
-	Enabled         bool   `json:"enabled"`
-	OTLPEndpoint    string `json:"otlp_endpoint"`
-	OTLPURLPath     string `json:"otlp_url_path"`
-	OTLPInsecure    bool   `json:"otlp_insecure"`
-	QueryEndpoint   string `json:"query_endpoint"`
-	InstallYAMLPath string `json:"install_yaml_path"`
+	Enabled       bool   `json:"enabled"`
+	OTLPEndpoint  string `json:"otlp_endpoint"`
+	OTLPURLPath   string `json:"otlp_url_path"`
+	OTLPInsecure  bool   `json:"otlp_insecure"`
+	QueryEndpoint string `json:"query_endpoint"`
 }
 
 // GetTelemetryStatus reports config knobs; always callable even when
@@ -116,26 +115,25 @@ type telemetryStatusData struct {
 func (a *Handler) GetTelemetryStatus(r *http.Request) (interface{}, error) {
 	cfg := config.Cfg.Telemetry
 	return telemetryStatusData{
-		Enabled:         cfg.Enabled,
-		OTLPEndpoint:    cfg.OTLPEndpoint,
-		OTLPURLPath:     cfg.OTLPURLPath,
-		OTLPInsecure:    cfg.OTLPInsecure,
-		QueryEndpoint:   cfg.QueryEndpoint(),
-		InstallYAMLPath: installYAMLPath,
+		Enabled:       cfg.Enabled,
+		OTLPEndpoint:  cfg.OTLPEndpoint,
+		OTLPURLPath:   cfg.OTLPURLPath,
+		OTLPInsecure:  cfg.OTLPInsecure,
+		QueryEndpoint: cfg.QueryEndpoint(),
 	}, nil
 }
 
 // telemetrySummaryData is the response of GET /api/v1/telemetry/summary.
 type telemetrySummaryData struct {
-	CreateTotal          int64   `json:"create_total"`
-	CreateSuccess        int64   `json:"create_success"`
-	CreateFailed         int64   `json:"create_failed"`
-	DeleteTotal          int64   `json:"delete_total"`
-	P50DurationSeconds   float64 `json:"p50_duration_seconds"`
-	P90DurationSeconds   float64 `json:"p90_duration_seconds"`
-	P99DurationSeconds   float64 `json:"p99_duration_seconds"`
-	P50AliveSeconds      float64 `json:"p50_alive_seconds"`
-	P90AliveSeconds      float64 `json:"p90_alive_seconds"`
+	CreateTotal        int64   `json:"create_total"`
+	CreateSuccess      int64   `json:"create_success"`
+	CreateFailed       int64   `json:"create_failed"`
+	DeleteTotal        int64   `json:"delete_total"`
+	P50DurationSeconds float64 `json:"p50_duration_seconds"`
+	P90DurationSeconds float64 `json:"p90_duration_seconds"`
+	P99DurationSeconds float64 `json:"p99_duration_seconds"`
+	P50AliveSeconds    float64 `json:"p50_alive_seconds"`
+	P90AliveSeconds    float64 `json:"p90_alive_seconds"`
 }
 
 // GetTelemetrySummary returns headline KPIs over the given window.
@@ -166,7 +164,7 @@ func (a *Handler) GetTelemetrySummary(r *http.Request) (interface{}, error) {
 		"delete_total":   fmt.Sprintf(`event_name:"sandbox.delete"%s %s | stats count() as n`, userClause, timeFilter),
 		"duration":       fmt.Sprintf(`event_name:"sandbox.create" success:true%s %s | stats quantile(0.5, duration_seconds) as p50, quantile(0.9, duration_seconds) as p90, quantile(0.99, duration_seconds) as p99`, userClause, timeFilter),
 		// "alive" is just the delete event's duration_seconds (the sandbox lifetime).
-		"alive":          fmt.Sprintf(`event_name:"sandbox.delete"%s %s | stats quantile(0.5, duration_seconds) as p50, quantile(0.9, duration_seconds) as p90`, userClause, timeFilter),
+		"alive": fmt.Sprintf(`event_name:"sandbox.delete"%s %s | stats quantile(0.5, duration_seconds) as p50, quantile(0.9, duration_seconds) as p90`, userClause, timeFilter),
 	}
 
 	type result struct {
@@ -382,11 +380,11 @@ func (a *Handler) GetTelemetryByUser(r *http.Request) (interface{}, error) {
 
 // telemetryDurationsData is the response of GET /api/v1/telemetry/durations.
 type telemetryDurationsData struct {
-	Metric  string             `json:"metric"`
-	Buckets []durationBucket   `json:"buckets"`
-	P50     float64            `json:"p50"`
-	P90     float64            `json:"p90"`
-	P99     float64            `json:"p99"`
+	Metric  string           `json:"metric"`
+	Buckets []durationBucket `json:"buckets"`
+	P50     float64          `json:"p50"`
+	P90     float64          `json:"p90"`
+	P99     float64          `json:"p99"`
 }
 
 type durationBucket struct {
@@ -454,8 +452,8 @@ func (a *Handler) GetTelemetryDurations(r *http.Request) (interface{}, error) {
 	// Histogram via repeated bucket count queries. Cheap compared to scanning
 	// in the client and avoids needing LogsQL `histogram_quantile`.
 	type bucketHit struct {
-		LE *float64
-		N  int64
+		LE  *float64
+		N   int64
 		err error
 	}
 	hits := make(chan bucketHit, len(buckets)+1)

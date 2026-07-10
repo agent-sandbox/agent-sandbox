@@ -703,8 +703,8 @@ export default function SandboxesPage() {
                           <td>{typeof sandbox.timeout === 'number' ? `${sandbox.timeout}s` : '-'}</td>
                           <td>{formatCreatedAt(sandbox.created_at)}</td>
                           <td className="text-right">
-                            <div className="text-center">
-                              <div className="mb-2 w-35">
+                            <div className="text-center justify-center">
+                              <div className="mb-2 ">
                                 <button
                                   className="btn btn-xs btn-outline mr-2"
                                   type="button"

@@ -59,3 +59,9 @@ V0.7.0 - 2026-06-24
 - 新增：Sandbox Snapshot功能，可以将Sandbox 启动的命令进行Snapshot保存，并在恢复时自动拉起；
 - 新增：Telemetry数据上报功能，支持上报沙箱的创建、销毁、错误等Log数据，便于监控和分析沙箱的使用情况；
 --------------------------
+V0.8.0 - 2026-07-10
+- 新增：Sandbox Controller 支持Leader选举，以支持多实例（高可用）部署；集群级副作用（池补充、缩容）仅在被选举的Leader上运行，其余副本继续提供API与代理流量；池同步器与缩容器可在Leader重新选举后正确恢复：每个任期使用新的工作队列，并在补充前等待Informer缓存同步，避免过量创建池ReplicaSet；
+- 新增：集群状态接口（`GET /api/v1/status`），返回整体状态；
+- 新增：Sandbox Snapshot支持SDK操作，如：`sbx.create_snapshot(); sbx.delete_snapshot()`，在获取Sandbox详情时返回Snapshot的内容；
+- 改进：Sandbox-Template 改为 Sandbox-Blueprint，避免跟Templates概念混淆；
+--------------------------

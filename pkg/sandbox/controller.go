@@ -109,10 +109,17 @@ func (s *Controller) Get(name string) (*Sandbox, error) {
 
 func (s *Controller) GetSandbox(rs *v1.ReplicaSet) (*Sandbox, error) {
 	raw := rs.Annotations[AnnotationSandboxData]
+	processSnapshotRaw := rs.Annotations[AnnotationProcessSnapshot]
 	sb := &Sandbox{}
 	json.Unmarshal([]byte(raw), sb)
 	sb.ReplicaSet = rs.DeepCopy()
 	sb.Status = deriveSandboxStatus(rs)
+	if sb.Metadata == nil {
+		sb.Metadata = map[string]string{}
+	}
+	if processSnapshotRaw != "" {
+		sb.Metadata["snapshot"] = processSnapshotRaw
+	}
 
 	return sb, nil
 }
@@ -212,9 +219,16 @@ var CreateRetry = wait.Backoff{
 }
 
 func (s *Controller) Create(sb *Sandbox) (*Sandbox, error) {
+	var err error
+
 	start := time.Now()
-	tlog := telemetry.TLog{LogName: "sandbox.create", Message: sb.ToString()}
 	defer func() {
+		tlog := telemetry.TLog{LogName: "sandbox.create", Message: sb.ToString()}
+		tlog.Success = true
+		if err != nil {
+			tlog.Success = false
+			tlog.Message = fmt.Sprintf("sandbox: %s, error: %v", sb.ToString(), err)
+		}
 		tlog.Duration = time.Since(start).Seconds()
 		TLog(sb, tlog)
 	}()
@@ -224,42 +238,39 @@ func (s *Controller) Create(sb *Sandbox) (*Sandbox, error) {
 	acquired := &v1.ReplicaSet{}
 	fromPool := false
 
-	var err error
 	if sb.TemplateObj.Pool.Size > 0 {
 		err = retry.OnError(CreateRetry, IsAcquireError, func() error {
-			var err error
-			acquired, fromPool, err = s.pl.AcquirePoolReplicaSet(sb)
-			return err
+			a, p, e := s.pl.AcquirePoolReplicaSet(sb)
+			acquired = a
+			fromPool = p
+			return e
 		})
 	} else {
 		acquired, err = s.pl.createSingleReplicaSet(sb)
 	}
 
 	if err != nil {
-		tlog.Message += " error: " + err.Error()
-		klog.Errorf("failed to create sandbox, error=%v, sandbox=%v", err, sb)
-		return nil, fmt.Errorf("failed to create sandbox, error=%v, sandbox=%v", err, sb)
+		errMsg := fmt.Errorf("failed to create sandbox, error=%v, sandbox=%v", err, sb)
+		klog.Error(errMsg)
+		return nil, errMsg
 	}
 
 	sb.ReplicaSet = acquired
 
 	// Wait for ReplicaSet to be ready
-	var readyErr error
 	if fromPool && sb.TemplateObj.Pool.StartupCmd != "" {
-		readyErr = s.StartupPoolReplicaSet(sb, false)
+		err = s.StartupPoolReplicaSet(sb, false)
 	} else {
-		readyErr = s.WaitForReplicaSetReady(sb)
+		err = s.WaitForReplicaSetReady(sb)
 	}
 
-	if readyErr != nil {
-		errMsg := fmt.Errorf("timeout waiting for sandbox to be ready, please get it leater or check sandbox status, error: %v", readyErr)
-		tlog.Message += " error: " + errMsg.Error()
-		klog.Errorf(errMsg.Error())
+	if err != nil {
+		errMsg := fmt.Errorf("timeout waiting for sandbox to be ready, please get it leater or check sandbox status, error: %v", err)
+		klog.Error(errMsg)
 		return sb, errMsg
 	}
 
 	sb.Status = Running
-	tlog.Success = true
 	return sb, nil
 }
 
@@ -864,7 +875,36 @@ func (s *Controller) ExecCommandInPod(name string, cmd []string) (output string,
 	return utils.ExecCommand(s.kclient, s.kcfg, config.Cfg.SandboxNamespace, name, "sandbox", cmd)
 }
 
-func (s *Controller) CountByUser(user string) (int, error) {
+// CountSandboxes returns the number of non-pool sandboxes. When user is "",
+// it counts across all users; otherwise it counts only the given user's
+// sandboxes. Uses the informer cache and does not parse sandbox-data
+// annotations, so it is cheap to call on hot paths (status / rate limit).
+func (s *Controller) CountSandboxes(user string) (int, error) {
+	sel := labels.Set{
+		"owner":   "agent-sandbox",
+		PoolLabel: "false",
+	}
+	if user != "" {
+		sel[UserLabel] = user
+	}
+	rsList, err := rsclient.Get(s.rootCtx).Lister().List(sel.AsSelector())
+	if err != nil {
+		if user == "" {
+			return 0, fmt.Errorf("failed to list replicasets: %w", err)
+		}
+		return 0, fmt.Errorf("failed to list replicasets for user %s: %w", user, err)
+	}
+	return len(rsList), nil
+}
+
+// CountByUserInCreate returns the number of the user's sandboxes whose RS is
+// still in the Creating state. Used by the multi-instance-safe concurrency
+// limit (we can't keep an in-memory counter when N replicas serve creates).
+//
+// Reads come from the informer cache, so this is cheap; the count is
+// eventually consistent and may briefly under- or over-count by 1 around the
+// moment a pod transitions to Ready.
+func (s *Controller) CountByUserInCreate(user string) (int, error) {
 	selector := labels.Set{
 		"owner":   "agent-sandbox",
 		UserLabel: user,
@@ -874,7 +914,13 @@ func (s *Controller) CountByUser(user string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to list replicasets for user %s: %w", user, err)
 	}
-	return len(rsList), nil
+	n := 0
+	for _, rs := range rsList {
+		if deriveSandboxStatus(rs) == Creating {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (s *Controller) CountAllByUser() (map[string]int, error) {

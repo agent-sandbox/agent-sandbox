@@ -27,6 +27,8 @@ type FeatureConfig struct {
 	ExperimentTokens string `split_words:"true" default:"testuser-aef134ef-7aa1-945e-9399-7df9a4ad0c3f" required:"false"`
 
 	PauseResume bool `split_words:"true" required:"false"`
+
+	PoolEnable bool `split_words:"true" required:"false"`
 }
 
 // CheckFeature checks is experiment user. If not set, returns true for all users.

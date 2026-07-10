@@ -33,14 +33,14 @@ export async function saveTemplatesConfig(payload: Template[]): Promise<string> 
   })
 }
 
-export async function getSandboxTemplateConfig(): Promise<string> {
-  return requestEnvelope<string>('/config/sandbox-template', {
+export async function getSandboxBlueprintConfig(): Promise<string> {
+  return requestEnvelope<string>('/config/blueprint', {
     method: 'GET',
   })
 }
 
-export async function saveSandboxTemplateConfig(payload: string): Promise<string> {
-  return requestEnvelope<string>('/config/sandbox-template', {
+export async function saveSandboxBlueprintConfig(payload: string): Promise<string> {
+  return requestEnvelope<string>('/config/blueprint', {
     method: 'POST',
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',

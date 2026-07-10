@@ -75,6 +75,11 @@ func shouldProtectAPIRequest(r *http.Request) bool {
 	if config.Cfg == nil {
 		return false
 	}
+	// /api/v1/status is public — it serves the Dashboard's aggregate counters
+	// (sandbox total, user total, capacity), with user keys masked.
+	if r.URL.Path == config.Cfg.APIBaseURL+"/status" {
+		return false
+	}
 	return strings.HasPrefix(r.URL.Path, config.Cfg.APIBaseURL+"/") || strings.HasPrefix(r.URL.Path, e2b.BaseURL+"/")
 }
 

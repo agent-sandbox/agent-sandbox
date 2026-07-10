@@ -135,14 +135,12 @@ func (a *Handler) CreateSandbox(ctx context.Context, newSandbox *api.NewSandbox)
 		}
 	}
 
-	if capacity.GlobalLimiter != nil && capacity.GlobalLimiter.Enabled() {
-		release, err := capacity.GlobalLimiter.AcquireCreate(user)
+	// check capacity limit
+	if capacity.GlobalLimiter.Enabled() {
+		_, err := capacity.GlobalLimiter.AcquireCreate(user)
 		if err != nil {
 			limitErr := err.(*capacity.LimitError)
 			return nil, &APIError{ClientMsg: limitErr.Message, Code: limitErr.Code}
-		}
-		if release != nil {
-			defer release()
 		}
 	}
 
@@ -233,6 +231,35 @@ func (a *Handler) SnapshotSandbox(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+func (a *Handler) DeleteSnapshotSandbox(w http.ResponseWriter, r *http.Request) {
+	sandboxID := r.PathValue("sandboxID")
+	if sandboxID == "" {
+		sendAPIError(w, http.StatusBadRequest, "sandboxID is required")
+		return
+	}
+
+	sb, err := a.controller.GetByID(sandboxID)
+	if err != nil {
+		klog.Errorf("Get sandbox %s error: %v", sandboxID, err)
+		sendAPIError(w, http.StatusNotFound, fmt.Sprintf("sandbox %s not found", sandboxID))
+		return
+	}
+
+	err = a.controller.DeleteProcessSnapshot(sb)
+	if err != nil {
+		klog.Errorf("Failed to delete snapshot sandbox %s: %v", sb.Name, err)
+		sendAPIError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete snapshot sandbox %s: %v", sb.Name, err))
+		return
+	}
+
+	apiSbx := api.Snapshot{
+		SnapshotID: sb.ID,
+		Names:      []string{sb.Name},
+	}
+	sendAPIOK(w, http.StatusOK, apiSbx)
+	return
+}
+
 func (a *Handler) ConnectSandbox(w http.ResponseWriter, r *http.Request) {
 	sandboxID := r.PathValue("sandboxID")
 	if sandboxID == "" {
@@ -263,7 +290,7 @@ func (a *Handler) ConnectSandbox(w http.ResponseWriter, r *http.Request) {
 		apiSbx.Metadata["resumed"] = "true"
 	}
 
-	sendAPIOK(w, http.StatusCreated, apiSbx)
+	sendAPIOK(w, http.StatusOK, apiSbx)
 	return
 }
 
