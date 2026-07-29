@@ -1,4 +1,7 @@
 # Lightweight Sandbox Base Images
+![image-size.png](image-size.png)
+The official E2B image `e2bdev/code-interpreter:latest` exceeds 3 GB in size. To reduce image size, improve pull efficiency while preserving full functionality, we rebuilt separate base images optimized for different scenarios.
+
 ## Image Description
 `sandbox-base` and `sandbox-base-node` are built on `python:3.12-slim-trixie` and `node:22-trixie-slim` respectively, preinstalled with common fundamental dependencies. Both images fall into the 200 MB size tier.
 
