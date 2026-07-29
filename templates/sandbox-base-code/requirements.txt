@@ -1,0 +1,17 @@
+# Jupyter server requirements
+jupyter-server==2.20.0
+ipykernel==6.31.0
+ipython==9.15.0
+
+# --- FastAPI
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+
+# --- data
+pydantic==2.9.1
+
+# --- net
+httpx==0.28.1
+websockets==12.0
+requests==2.33.0
+
