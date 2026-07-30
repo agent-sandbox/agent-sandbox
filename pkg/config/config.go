@@ -54,6 +54,8 @@ type RuntimeConfig struct {
 type Config struct {
 	KubeClient kubernetes.Interface `ignored:"true"`
 
+	LeaderName string `split_words:"true" default:"agent-sandbox-leader" required:"false"`
+
 	APIVersion  string   `split_words:"true" default:"v1" required:"false"`
 	APIBaseURL  string   `split_words:"true" default:"" required:"false"`
 	ServerAddr  string   `split_words:"true" default:"0.0.0.0:10000" required:"false"`

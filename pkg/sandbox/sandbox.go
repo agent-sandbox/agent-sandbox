@@ -287,19 +287,22 @@ func (sb *Sandbox) Make() error {
 	}
 
 	if sb.Name == "" {
-		prefix := t.Name
+		prefix := time.Now().UnixMilli() //1784267297000
 
 		userSig := "default"
 		if sb.User != "" {
 			// remove e2b_ prefix, e.g. e2b_testuser-aef134ef-7aa1-945e-9399-7df9a4ad0c3f
 			userSig = strings.TrimPrefix(sb.User, "e2b_")
-			userSig = strings.Split(userSig, "-")[0]
+			l := len(userSig)
+			if l > 10 {
+				l = 10
+			}
+			userSig = userSig[:l]
 		}
 
 		// k8s name max length is 63
-		// take first 20 chars of id to make name more unique
 		postfix := id[:20]
-		sb.Name = fmt.Sprintf("sbx-%s-%s-%s", userSig, prefix, postfix)
+		sb.Name = fmt.Sprintf("sbx-%s-%d-%s", userSig, prefix, postfix)
 		if len(sb.Name) > 60 {
 			sb.Name = sb.Name[:60]
 		}

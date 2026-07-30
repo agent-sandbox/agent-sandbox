@@ -110,7 +110,7 @@ func main() {
 	// drives the pool syncer. Every other replica keeps serving HTTP, reading
 	// the ConfigMap watcher, and proxying sandbox traffic.
 	go leader.RunAsLeader(rootCtx, leader.Config{
-		LeaseName: "agent-sandbox-leader",
+		LeaseName: cfg.LeaderName,
 		Namespace: cfg.SandboxNamespace,
 		Client:    kubeClient,
 	}, func(ctx context.Context) {

@@ -18,13 +18,16 @@ package activator
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/agent-sandbox/agent-sandbox/pkg/config"
-	corev1 "k8s.io/api/core/v1"
-	v1meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/agent-sandbox/agent-sandbox/pkg/telemetry"
+	appsv1 "k8s.io/api/apps/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
 	rsclient "knative.dev/pkg/client/injection/kube/informers/apps/v1/replicaset"
@@ -37,14 +40,11 @@ const (
 )
 
 const (
-	EventTypeLastRequest  string = "LastRequestTime"
-	EventTypeLastResponse string = "LastResponseTime"
-
 	// TODO eventTypePaused
 	EventTypePaused string = "SandboxPaused"
 	EventTypeResume string = "SandboxResumed"
 
-	recordEventInterval = 2 * time.Minute
+	recordLeaseInterval = 2 * time.Minute
 )
 
 type Activator struct {
@@ -67,59 +67,93 @@ func (a *Activator) Recorder() record.EventRecorder {
 	return a.recorder
 }
 
-func (a *Activator) RecordActiveEvent(eventType string, name string) {
+// RecordActive records that the given sandbox was just used, by renewing a
+// per-sandbox Lease.
+func (a *Activator) RecordActive(name string) {
 	now := time.Now()
-	cacheKey := eventType + "/" + name
 
-	// record event at most once in recordEventInterval for the same sandbox and event type avoid too many events when sandbox is under high QPS
 	a.lastEventRecordMux.Lock()
-	lastAt, ok := a.lastEventRecordAt[cacheKey]
-	if ok && now.Sub(lastAt) < recordEventInterval {
+	lastAt, ok := a.lastEventRecordAt[name]
+	if ok && now.Sub(lastAt) < recordLeaseInterval {
 		a.lastEventRecordMux.Unlock()
 		return
 	}
-	a.lastEventRecordAt[cacheKey] = now
+	a.lastEventRecordAt[name] = now
 	a.lastEventRecordMux.Unlock()
 
-	rs, err := rsclient.Get(a.rootCtx).Lister().ReplicaSets(config.Cfg.SandboxNamespace).Get(name)
-	if err != nil {
-		a.lastEventRecordMux.Lock()
-		if current, exists := a.lastEventRecordAt[cacheKey]; exists && current.Equal(now) {
-			delete(a.lastEventRecordAt, cacheKey)
-		}
-		a.lastEventRecordMux.Unlock()
-		klog.ErrorS(err, "Failed to record event ", "name", name)
-		return
-	}
-	annotations := make(map[string]string)
-	annotations["sandbox-data"] = rs.Annotations["sandbox-data"]
-	a.recorder.AnnotatedEventf(rs, annotations, corev1.EventTypeNormal, eventType, "")
+	go a.renewActiveLease(name, now)
 }
 
-// GetLastRequestTime gets the last request event for the given sandbox name.
-// return lastTimestamp of EventTypeLastRequest
-func (a *Activator) GetLastRequestTime(name string) int64 {
-	kubeClient := kubeclient.Get(a.rootCtx)
+// rollbackActiveRecord undoes the debounce entry set by RecordActive when the
+// renewal ultimately fails, so the next request for this sandbox retries
+// immediately instead of silently going quiet for a full recordLeaseInterval.
+func (a *Activator) rollbackActiveRecord(name string, recordedAt time.Time) {
+	a.lastEventRecordMux.Lock()
+	if current, exists := a.lastEventRecordAt[name]; exists && current.Equal(recordedAt) {
+		delete(a.lastEventRecordAt, name)
+	}
+	a.lastEventRecordMux.Unlock()
+}
 
-	fieldSelector := fmt.Sprintf("involvedObject.name=%s,involvedObject.kind=ReplicaSet", name)
+func (a *Activator) renewActiveLease(name string, now time.Time) {
+	ns := config.Cfg.SandboxNamespace
+	renewTime := metav1.NewMicroTime(now)
+	leases := kubeclient.Get(a.rootCtx).CoordinationV1().Leases(ns)
 
-	listOptions := v1meta.ListOptions{
-		FieldSelector: fieldSelector,
+	err := retry.OnError(retry.DefaultRetry, func(err error) bool {
+		return apierrors.IsConflict(err) || apierrors.IsAlreadyExists(err)
+	}, func() error {
+		lease, getErr := leases.Get(a.rootCtx, name, metav1.GetOptions{})
+		if apierrors.IsNotFound(getErr) {
+			rs, rsErr := rsclient.Get(a.rootCtx).Lister().ReplicaSets(ns).Get(name)
+			if rsErr != nil {
+				return rsErr
+			}
+			newLease := &coordinationv1.Lease{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels:    map[string]string{"app": ComponentName},
+					Name:      name,
+					Namespace: ns,
+					OwnerReferences: []metav1.OwnerReference{
+						*metav1.NewControllerRef(rs, appsv1.SchemeGroupVersion.WithKind("ReplicaSet")),
+					},
+				},
+				Spec: coordinationv1.LeaseSpec{
+					RenewTime: &renewTime,
+				},
+			}
+			_, createErr := leases.Create(a.rootCtx, newLease, metav1.CreateOptions{})
+			return createErr
+		}
+		if getErr != nil {
+			return getErr
+		}
+		lease.Spec.RenewTime = &renewTime
+		_, updateErr := leases.Update(a.rootCtx, lease, metav1.UpdateOptions{})
+		return updateErr
+	})
+	if err != nil {
+		a.rollbackActiveRecord(name, now)
+		klog.ErrorS(err, "Failed to renew active lease", "name", name)
+		tlog := telemetry.TLog{LogName: "sandbox.recordActive", Sbx: telemetry.SbxInfo{SandboxName: name}, Success: false, Message: err.Error()}
+		telemetry.EmitTLog(tlog)
 	}
 
-	items, err := kubeClient.CoreV1().Events(config.Cfg.SandboxNamespace).List(context.TODO(), listOptions)
-	if err != nil {
-		klog.ErrorS(err, "Failed to get last request event", "name", name)
+	klog.V(2).InfoS("renew active lease", "name", name, "err", err)
+}
+
+// GetLastRequestTime gets the last recorded active time for the given sandbox name.
+func (a *Activator) GetLastRequestTime(name string) int64 {
+	lease, err := kubeclient.Get(a.rootCtx).CoordinationV1().Leases(config.Cfg.SandboxNamespace).Get(a.rootCtx, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
 		return 0
 	}
-
-	lastTimestamp := int64(0)
-
-	for _, item := range items.Items {
-		if item.Reason == EventTypeLastRequest && item.LastTimestamp.Unix() > lastTimestamp {
-			lastTimestamp = item.LastTimestamp.Unix()
-		}
+	if err != nil {
+		klog.ErrorS(err, "Failed to get last active lease", "name", name)
+		return 0
 	}
-
-	return lastTimestamp
+	if lease.Spec.RenewTime == nil {
+		return 0
+	}
+	return lease.Spec.RenewTime.Time.Unix()
 }

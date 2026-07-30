@@ -52,8 +52,13 @@ func (s *Scaler) RunScaling() {
 	for {
 		select {
 		case <-ticker.C:
-			s.ScalingDownOfTimeout()
-			s.ScalingDownOfIdleTimeout()
+			sbs, err := s.controller.ListAll()
+			if err == nil {
+				s.ScalingDownOfTimeout(sbs)
+				s.ScalingDownOfIdleTimeout(sbs)
+			} else {
+				klog.Error("Failed to list sandboxes for scaling down: ", err)
+			}
 		case <-s.rootCtx.Done():
 			klog.Info("Scaler stopping")
 			return

@@ -26,15 +26,7 @@ import (
 )
 
 // ScalingDownOfIdleTimeout checks sandboxes for idle timeout and deletes them if necessary
-// TODO 1, record last active(e.g. in 2 minute) sandboxes and skip them reduce pressure on kube-apiserver;
-// TODO 2, use lease to instead of event to record last request time, which is more efficient and can avoid pressure on kube-apiserver
-func (s *Scaler) ScalingDownOfIdleTimeout() {
-	sbs, err := s.controller.ListAll()
-	if err != nil {
-		klog.Error("Failed to list sandboxes for idle timeout scaling down: ", err)
-		return
-	}
-
+func (s *Scaler) ScalingDownOfIdleTimeout(sbs []*sandbox.Sandbox) {
 	for _, sb := range sbs {
 		// Skip if IdleTimeout is not configured (0 or negative)
 		if sb.IdleTimeout <= 0 {
@@ -61,12 +53,12 @@ func (s *Scaler) ScalingDownOfIdleTimeout() {
 			continue
 		}
 
-		// Get the last request time from events
+		// Get the last request time from the sandbox's activity lease
 		lastRequestTime := s.activator.GetLastRequestTime(sb.Name)
 
-		// If no LastRequestTime event found, use creation time as fallback
+		// If no activity lease found, use creation time as fallback
 		if lastRequestTime == 0 {
-			klog.Warningf("Sandbox %v has no LastRequestTime event, use Created time", sb.Name)
+			klog.Warningf("Sandbox %v has no activity lease, use Created time", sb.Name)
 			lastRequestTime = sb.CreatedAt.Unix()
 		}
 

@@ -32,3 +32,6 @@ __pycache__/
 ui/node_modules
 ui/dist
 web/site
+
+
+examples/**/.env
