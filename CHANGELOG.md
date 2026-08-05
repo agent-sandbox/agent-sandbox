@@ -65,7 +65,7 @@ V0.8.0 - 2026-07-10
 - Add: Sandbox Snapshot SDK operations, e.g. `sbx.create_snapshot(); sbx.delete_snapshot()`; the snapshot content is returned when fetching sandbox info.
 - Change: rename Sandbox-Template to Sandbox-Blueprint to avoid confusion with the Templates concept.
 --------------------------
-V0.8.1 - 2026-07-30
+V0.8.1 - 2026-08-05
 - Improve: track sandbox last-active time with a per-sandbox Kubernetes Lease instead of Events, reducing kube-apiserver load in the idle-timeout scaler (a single Lease Get instead of listing and scanning Events per sandbox).
 - Improve: configure the leader identity via the `LeaderName` environment variable, defaulting to `agent-sandbox-leader`.
 - Improve: strengthen sandbox naming robustness by adding a timestamp and user-key prefix.

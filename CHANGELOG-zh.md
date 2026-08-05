@@ -65,7 +65,7 @@ V0.8.0 - 2026-07-10
 - 新增：Sandbox Snapshot支持SDK操作，如：`sbx.create_snapshot(); sbx.delete_snapshot()`，在获取Sandbox详情时返回Snapshot的内容；
 - 改进：Sandbox-Template 改为 Sandbox-Blueprint，避免跟Templates概念混淆；
 --------------------------
-V0.8.1 - 2026-07-30
+V0.8.1 - 2026-08-05
 - 改进：沙箱最近活跃时间的记录方式由 Event 改为每沙箱一个 Lease，降低 idle timeout 缩容检查对 kube-apiserver 的压力（原来需要 List 并扫描 Event，现在只需一次 Lease Get）；
 - 改进：通过环境变量`LeaderName`来指定Leader的标识，默认`agent-sandbox-leader`；
 - 改进：Sandbox名称规则增强健壮性，增加时间戳和用户Key前缀；
