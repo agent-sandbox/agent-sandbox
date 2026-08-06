@@ -125,7 +125,7 @@ e2b-code-interpreter == 2.4.1
 
 **Configure the E2B backend address:**
 ```bash
-export E2B_API_TOKEN=sys-2492a85b10ed4cb083b
+export E2B_API_KEY=testuser-aef134ef-7aa1-945e-9399-7df9a4ad0c3f
 export E2B_DOMAIN=agent-sandbox.your-host.com
 export E2B_API_URL=http://agent-sandbox.your-host/e2b/v1
 ```
@@ -152,7 +152,8 @@ print(sbx.get_info())
 # Run a background command in the sandbox
 sbx.commands.run("npx serve -l 8008", background=True, timeout=0)
 
-# Create processes snapshot for the sandbox, when the sandbox is resumed, the background command can be restored automatically
+# Create processes snapshot for the sandbox, when the sandbox is resumed, 
+# the background command can be restored automatically
 sbx.create_snapshot()
 
 # Upload file to sandbox
