@@ -59,6 +59,7 @@ nav = [
         ]}
     ]},
     {"Guides" = [
+       {"AI Agent Deploying Generated Apps" = "guides/ai_agent_app_deployment.md"},
        {"E2B SDK Workarounds" = "guides/e2b_workarounds.md"},
     ]}
 ]
