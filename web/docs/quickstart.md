@@ -8,7 +8,7 @@ This guide walks you through deploying Agent-Sandbox and creating your first san
 
 ## Prerequisites
 
-- Kubernetes cluster (version 1.26 or higher)
+- Kubernetes cluster (version 1.28 or higher)
 - `kubectl` configured to access your cluster
 - (Optional) `e2b-code-interpreter` Python SDK: `pip install e2b-code-interpreter`
 
@@ -114,15 +114,27 @@ os.environ['E2B_DOMAIN'] = 'agent-sandbox.your-host.com'
 
 ```python
 def local():
-    os.environ['E2B_DEBUG'] = "true"
-    os.environ['E2B_API_URL'] = 'http://localhost:10000/e2b/v1'
+    os.environ['E2B_API_URL'] = 'http://example.domain.com/e2b/v1'
+    os.environ['E2B_DOMAIN'] = 'example.domain.com'
     os.environ['E2B_API_KEY'] = 'testuser-aef134ef-7aa1-945e-9399-7df9a4ad0c3f'
-    os.environ['E2B_DOMAIN'] = 'localhost:10000'
 
+    # use path to forward to sandbox, instead of subdomain
     def __connection_config_get_host(_, sandbox_id: str, sandbox_domain: str, port: int) -> str:
         return f"{sandbox_domain}/sandboxes/router/{sandbox_id}/{port}"
+
+     # use http instead of https for sandbox url
+    def __get_sandbox_url(self, sandbox_id: str, sandbox_domain: str) -> str:
+        return f"http://{self.get_host(sandbox_id, sandbox_domain, self.envd_port)}"
+
     from e2b import ConnectionConfig
     ConnectionConfig.get_host = __connection_config_get_host
+    ConnectionConfig.get_sandbox_url = __get_sandbox_url
+
+    # patch the API key pattern to compatible old format,
+    # new API key format is must start with "e2b_",(e2b version >= 2.25.0)
+    from e2b import api
+    import re
+    api._API_KEY_PATTERN = re.compile(r"\A.{30,}\Z")
 ```
 
 
@@ -133,7 +145,7 @@ def local():
 from e2b_code_interpreter import Sandbox
 
 # Create a sandbox
-sandbox = Sandbox.create(template='code-interpreter', timeout=300)
+sandbox = Sandbox.create(template='sandbox-base-code', timeout=300)
 
 print(f"Sandbox ID: {sandbox.sandbox_id}")
 

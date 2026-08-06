@@ -58,8 +58,8 @@ nav = [
             {"Templates" = "templates.md"},
         ]}
     ]},
-    {"Practices" = [
-       {"E2B SDK Workarounds" = "practices/e2b_workarounds.md"},
+    {"Guides" = [
+       {"E2B SDK Workarounds" = "guides/e2b_workarounds.md"},
     ]}
 ]
 
