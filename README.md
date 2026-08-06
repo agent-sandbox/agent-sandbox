@@ -119,9 +119,16 @@ Now you can access the Agent-Sandbox API server at `http://agent-sandbox.your-ho
 ```python
 idleTimeout = 60*10
 
-# Create a sandbox instance from the "sandbox-base-node" template, with an idle timeout of 10 minutes
-sbx = Sandbox.create(template="sandbox-base-node", timeout=-1,metadata={"idleTimeout":str(idleTimeout)})
-
+# Create a sandbox instance from the "sandbox-base-node" template, 
+# with an idle timeout of 10 minutes, 
+# a lifecycle that pauses the sandbox and automatically resumes it when accessed again.
+sbx = Sandbox.create(
+    template="sandbox-base-node",
+    timeout=-1,  # no hard lifetime; idle timeout owns reclamation
+    metadata={"idleTimeout": str(idleTimeout)}, 
+    lifecycle={"on_timeout": "pause", "auto_resume": True}, 
+)
+    
 print(sbx.get_info())
 #output: SandboxInfo(sandbox_id='02f53ee512e1413d86b730c6e122441e', sandbox_domain=None, template_id='sandbox-base-node', name=None, metadata={'idleTimeout': '600', 'name': 'sbx-testuser-sandbox-base-node-3f0d1fe4736b43bd9a30', 'snapshot': 'eyJjYXB0dXJlZF90aW1lIjoiMjAyNi0wNy0xNFQwNjo0MDowOC4wNjQ0NDU5ODNaIiwicHJvY2Vzc2VzIjpbeyJjb25maWciOnsiY21kIjoiL2Jpbi9iYXNoIiwiYXJncyI6WyItbCIsIi1jIiwicHl0aG9uIC1tIGh0dHAuc2VydmVyIDgwMDgiXX0sInBpZCI6MTZ9XX0='}, started_at=datetime.datetime(2026, 7, 14, 6, 40, 2, 5251, tzinfo=tzutc()), end_at=datetime.datetime(1, 1, 1, 0, 0, tzinfo=tzutc()), state=<SandboxState.RUNNING: 'running'>, cpu_count=50, memory_mb=200, envd_version='0.1.1', _envd_access_token='3f0d1fe4736b43bd9a306deccaf1bb1e', allow_internet_access=None, network=None, lifecycle={'on_timeout': <SandboxOnTimeout.KILL: 'kill'>, 'auto_resume': True}, volume_mounts=[])
 
