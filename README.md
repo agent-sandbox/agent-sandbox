@@ -116,7 +116,24 @@ spec:
 Now you can access the Agent-Sandbox API server at `http://agent-sandbox.your-host.com`.
 
 ## 2, Usage
+### via E2B Python SDK
+**Requirements:**
+```
+e2b == 2.21.1
+e2b-code-interpreter == 2.4.1
+```
+
+**Configure the E2B backend address:**
+```bash
+export E2B_API_TOKEN=sys-2492a85b10ed4cb083b
+export E2B_DOMAIN=agent-sandbox.your-host.com
+export E2B_API_URL=http://agent-sandbox.your-host/e2b/v1
+```
+
+**Python example:**
 ```python
+from e2b_code_interpreter import Sandbox
+
 idleTimeout = 60*10
 
 # Create a sandbox instance from the "sandbox-base-node" template, 
