@@ -62,6 +62,26 @@ func (a *Handler) ListSandboxes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// GET /v2/sandboxes declares metadata, state, nextToken and limit (see
+	// api.GetV2SandboxesParams, generated from the e2b description). They were never
+	// read off the request, so every call returned the caller's whole list and a
+	// filter that matched nothing came back looking like a filter that matched
+	// everything.
+	params, perr := parseListParams(r.URL.Query())
+	if perr != "" {
+		sendAPIError(w, http.StatusBadRequest, perr)
+		return
+	}
+	var metaFilter map[string]string
+	if params.Metadata != nil {
+		var ok bool
+		metaFilter, ok = parseMetadataFilter(*params.Metadata)
+		if !ok {
+			sendAPIError(w, http.StatusBadRequest, "invalid metadata filter, expected URL-encoded key=value pairs")
+			return
+		}
+	}
+
 	sbs, err := a.controller.List(user)
 	if err != nil {
 		sendAPIError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list sandboxes: %v", err))
@@ -72,6 +92,13 @@ func (a *Handler) ListSandboxes(w http.ResponseWriter, r *http.Request) {
 	for _, sb := range sbs {
 		apiSbx := a.convertToE2BSandbox(sb)
 		apiSandboxes = append(apiSandboxes, apiSbx)
+	}
+
+	// Filter AFTER conversion: state and metadata are read from the e2b shape, so
+	// the filter sees exactly what the caller sees.
+	apiSandboxes, nextToken := applyListFilters(apiSandboxes, params, metaFilter)
+	if nextToken != "" {
+		w.Header().Set("X-Next-Token", nextToken)
 	}
 
 	sendAPIOK(w, http.StatusOK, apiSandboxes)
