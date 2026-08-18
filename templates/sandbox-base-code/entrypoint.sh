@@ -31,6 +31,11 @@ CODE_INTERPRETER_PORT="${CODE_INTERPRETER_PORT:-49999}"
 CODE_INTERPRETER_WORKDIR="${CODE_INTERPRETER_WORKDIR:-/workspace}"
 CODE_INTERPRETER_APP_DIR="${CODE_INTERPRETER_APP_DIR:-/opt/code-interpreter}"
 
+# set up the working directory
+export WORKDIR="/workspace"
+mkdir -p "${WORKDIR}"
+chmod 777 "${WORKDIR}"
+
 if [ ! -x "${ENVD_BIN}" ]; then
     echo "entrypoint: envd binary not found or not executable at ${ENVD_BIN}" >&2
     exit 127

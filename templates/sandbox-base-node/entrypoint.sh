@@ -21,6 +21,11 @@ ENVD_PORT="${ENVD_PORT:-49983}"
 ENVD_LOG_FILE="${ENVD_LOG_FILE:--}"
 ENVD_EXTRA_ARGS="${ENVD_EXTRA_ARGS:-}"
 
+# set up the working directory
+export WORKDIR="/workspace"
+mkdir -p "${WORKDIR}"
+chmod 777 "${WORKDIR}"
+
 if [ ! -x "${ENVD_BIN}" ]; then
     echo "entrypoint: envd binary not found or not executable at ${ENVD_BIN}" >&2
     exit 127
