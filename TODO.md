@@ -15,4 +15,5 @@
 1. - [x] Sandbox Snapshot
 1. - [x] Use lease instead event to optimize idle timeout performance
 1. - [x] Telemetry data reporting by logs
+1. - [ ] Update Sandbox config e.g. resources, env, args, etc. by create with sandbox id, e.g. create(metadata:{sandbox_id:xxx}).
 

@@ -18,13 +18,12 @@ A project may be one process or several (API, worker, UI, ...). Each
 deploys to its **own sandbox**, on whichever template matches its runtime
 (`sandbox-base` for stdlib Python, `sandbox-base-node` for Node, ...),
 with its own `sandbox_id`. If one service calls another, use the
-platform's internal cluster address, not the public gateway — see
-`references/prerequisites.md` ("Internal service-to-service calls");
+platform's internal cluster address, not the public gateway.
 
 ## Setup
 
 ```bash
-pip install e2b e2b-code-interpreter python-dotenv
+pip install e2b==2.21.1 e2b-code-interpreter==2.4.1 python-dotenv
 ```
 
 `.env`:
@@ -40,7 +39,7 @@ E2B_API_URL=http://agent-sandbox.<domain>/e2b/v1
 - Multiple services → separate directories, separate sandboxes.
 - Servers must bind `0.0.0.0`.
 - Address the persistent working directory (`/workspace`) explicitly in
-  every file write and command — see `references/prerequisites.md`.
+  every file write and command.
 - Served under a sub-path (`/sandboxes/router/{id}/{port}/`), so any
   browser-facing assets need relative paths: `vite build --base ./`, CRA
   `"homepage": "."`, plain `./app.js`-style references.
@@ -122,7 +121,7 @@ def save_state(state):
     STATE_FILE.write_text(json.dumps(state, indent=2))
 
 
-def get_or_create_sandbox(state, key, template, idle_timeout):
+def get_or_create_sandbox(state, key, template, idle_timeout, envs=None):
     """Reuse the recorded sandbox if it still exists, else create one.
     Returns (sandbox, service_state_entry, created)."""
     entry = state.setdefault(key, {})
@@ -138,6 +137,7 @@ def get_or_create_sandbox(state, key, template, idle_timeout):
         timeout=-1,  # no hard lifetime; idle timeout owns reclamation
         metadata={"idleTimeout": str(idle_timeout)},
         lifecycle={"on_timeout": "pause", "auto_resume": True},
+        envs=envs
     )
     entry["sandbox_id"] = sbx.sandbox_id
     return sbx, entry, True  # freshly created
@@ -193,7 +193,8 @@ def install_deps(sbx, workdir, cmd, timeout=300):
 
 Kill any previous run of this service — `files.write()` alone doesn't
 make a running process pick up new code — start the fresh one with
-output redirected to a log file, then verify it's actually serving:
+output redirected to a log file, then verify it's actually serving. 
+The sandbox has no `ps` command; use `sbx.commands.list()` to see what's running instead:
 
 ```python
 def restart_service(sbx, workdir, match, start_cmd, port, log_file="service.log"):
@@ -244,8 +245,8 @@ source directory:
 ```python
 state = load_state()
 base = public_base_url()
-
-sbx, entry, created = get_or_create_sandbox(state, "service", "sandbox-base", idle_timeout)
+py_deps = f"{WORKDIR}/pylibs"
+sbx, entry, created = get_or_create_sandbox(state, "service", "sandbox-base", idle_timeout, envs={"PYTHONPATH": py_deps})
 upload_dir(sbx, PROJECT_DIR, WORKDIR)                       # step 5 (files variant)
 # install_deps(sbx, WORKDIR, "pip install -r requirements.txt")  # step 6, if needed
 start_cmd = "python3 server.py"

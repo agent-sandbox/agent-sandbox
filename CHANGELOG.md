@@ -70,3 +70,9 @@ V0.8.1 - 2026-08-05
 - Improve: configure the leader identity via the `LeaderName` environment variable, defaulting to `agent-sandbox-leader`.
 - Improve: strengthen sandbox naming robustness by adding a timestamp and user-key prefix.
 --------------------------
+V0.8.2 - 2026-08-18
+- Fix: sandbox creation failure caused by an exception when assigning template metadata onto an empty sandbox metadata.
+- Improve: AI Deploy Skill, pin the SDK version and correct external references in the AI Deploy Skill.
+- Improve: Templates, WORKDIR environment variable and permission settings in templates.
+- Improve: Sandbox List API now supports pagination and metadata filtering (`?limit=100&metadata=workspace%3D<existing>`), #11.
+--------------------------

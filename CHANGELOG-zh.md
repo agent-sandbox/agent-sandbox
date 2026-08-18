@@ -70,3 +70,9 @@ V0.8.1 - 2026-08-05
 - 改进：通过环境变量`LeaderName`来指定Leader的标识，默认`agent-sandbox-leader`；
 - 改进：Sandbox名称规则增强健壮性，增加时间戳和用户Key前缀；
 --------------------------
+V0.8.2 - 2026-08-18
+- 修复：Sandbox Metadata为空时，通过template的metadata赋值异常，导致创建失败的问题；
+- 改进：AI Deploy Skill指定SDK版本和外部引用修正；
+- 改进：Templates WORKDIR环境变量和权限设置；
+- 改进：Sandbox List API支持分页和Metadata过滤（?limit=100&metadata=workspace%3D<existing>），#11；
+--------------------------

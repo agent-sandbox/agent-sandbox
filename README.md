@@ -88,7 +88,7 @@ flowchart TD
 ## 1, Installation
 You can install Agent-Sandbox by applying the provided [install.yaml](https://github.com/agent-sandbox/agent-sandbox/blob/main/install.yaml) file to your Kubernetes cluster.
 
-requires **Kubernetes version 1.26** or higher.
+requires **Kubernetes version 1.28** or higher.
 ```bash
 kubectl create namespace agent-sandbox
 kubectl apply -nagent-sandbox -f install.yaml
