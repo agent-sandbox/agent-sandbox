@@ -113,6 +113,12 @@ func TestInvalidValuesAreRejectedNotIgnored(t *testing.T) {
 	if _, perr := parseListParams(url.Values{"limit": {"abc"}}); perr == "" {
 		t.Fatal("non-numeric limit must be an error")
 	}
+	if _, perr := parseListParams(url.Values{"nextToken": {"not-a-number"}}); perr == "" {
+		t.Fatal("garbled nextToken must be an error, not silently reset to page 1")
+	}
+	if _, perr := parseListParams(url.Values{"nextToken": {"-1"}}); perr == "" {
+		t.Fatal("negative nextToken must be an error")
+	}
 	if _, ok := parseMetadataFilter("this-is-not-key-value"); ok {
 		t.Fatal("malformed metadata must be rejected, never treated as no filter")
 	}

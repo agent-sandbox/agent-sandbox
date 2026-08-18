@@ -37,9 +37,9 @@ import (
 // are accepted: repeated (state=running&state=paused) and comma-separated
 // (state=running,paused).
 //
-// An unparseable limit or an unknown state is reported rather than ignored: the
-// contract says these are typed, and silently discarding a filter the caller asked
-// for is how an unfiltered response gets mistaken for an empty one.
+// An unparseable limit, nextToken, or an unknown state is reported rather than
+// ignored: the contract says these are typed, and silently discarding a filter the
+// caller asked for is how an unfiltered response gets mistaken for an empty one.
 func parseListParams(q url.Values) (*api.GetV2SandboxesParams, string) {
 	p := &api.GetV2SandboxesParams{}
 
@@ -78,6 +78,9 @@ func parseListParams(q url.Values) (*api.GetV2SandboxesParams, string) {
 	}
 
 	if raw := strings.TrimSpace(q.Get("nextToken")); raw != "" {
+		if n, err := strconv.Atoi(raw); err != nil || n < 0 {
+			return nil, "invalid nextToken: " + raw
+		}
 		tok := api.PaginationNextToken(raw)
 		p.NextToken = &tok
 	}
@@ -164,9 +167,8 @@ func applyListFilters(in []*api.Sandbox, p *api.GetV2SandboxesParams, meta map[s
 
 	start := 0
 	if p.NextToken != nil {
-		if n, err := strconv.Atoi(string(*p.NextToken)); err == nil && n > 0 {
-			start = n
-		}
+		// Already validated as a non-negative integer by parseListParams.
+		start, _ = strconv.Atoi(string(*p.NextToken))
 	}
 	if start >= len(out) {
 		return []*api.Sandbox{}, ""

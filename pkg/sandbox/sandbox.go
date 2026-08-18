@@ -264,6 +264,9 @@ func (sb *Sandbox) Make() error {
 	}
 
 	// merge template metadata and sandbox metadata, sandbox metadata has higher priority
+	if sb.Metadata == nil {
+		sb.Metadata = make(map[string]string)
+	}
 	if t.Metadata != nil {
 		for k, v := range t.Metadata {
 			if _, ok := sb.Metadata[k]; !ok {
