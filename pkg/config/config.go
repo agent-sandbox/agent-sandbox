@@ -33,7 +33,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
-const Version = "0.8.1"
+const Version = "0.8.3"
 
 var Cfg *Config
 var Templates []*Template

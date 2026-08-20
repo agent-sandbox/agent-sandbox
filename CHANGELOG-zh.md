@@ -76,3 +76,8 @@ V0.8.2 - 2026-08-18
 - 改进：Templates WORKDIR环境变量和权限设置；
 - 改进：Sandbox List API支持分页和Metadata过滤（?limit=100&metadata=workspace%3D<existing>），#11；
 --------------------------
+V0.8.3 - 2026-08-19
+- 修复：并发对同一个已暂停的Sandbox发起Resume请求时，更新ReplicaSet可能发生冲突导致请求失败；现在冲突方会识别出已有请求正在恢复该沙箱，直接等待其启动完成而不再报错；
+- 修复：Metrics无法显示，反馈某些情况下Metrics无法正常查询，通过冗余设定event_name避免, `log.String("event_name", tlog.LogName)` #10
+- 改进：UI Sandbox列表查询支持Labels(Metadata)过滤，#12；
+--------------------------

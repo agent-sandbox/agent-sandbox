@@ -76,3 +76,8 @@ V0.8.2 - 2026-08-18
 - Improve: Templates, WORKDIR environment variable and permission settings in templates.
 - Improve: Sandbox List API now supports pagination and metadata filtering (`?limit=100&metadata=workspace%3D<existing>`), #11.
 --------------------------
+V0.8.3 - 2026-08-20
+- Fix: concurrent Resume requests on the same paused sandbox could conflict when updating the ReplicaSet and fail; the loser now detects the conflict and simply waits for the winner's pod instead of erroring.
+- Fix: Metrics not showing up in some cases due to a query issue; worked around by redundantly setting `event_name` via `log.String("event_name", tlog.LogName)`, #10.
+- Improve: the UI Sandbox list query now supports filtering by Labels (Metadata), #12.
+--------------------------
