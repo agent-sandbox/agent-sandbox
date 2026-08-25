@@ -6,26 +6,13 @@
   <p>
     <img alt="license" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg">
     <img alt="go version" src="https://img.shields.io/badge/go-1.25-00ADD8?logo=go&logoColor=white">
-    <img alt="version" src="https://img.shields.io/badge/version-0.8.1-brightgreen">
+    <img alt="version" src="https://img.shields.io/badge/version-0.8.3-brightgreen">
     <a href="https://agent-sandbox.github.io"><img alt="docs" src="https://img.shields.io/badge/docs-agent--sandbox.github.io-informational"></a>
   </p>
 
   <p>
     Self-hosted, lightweight, and easy-to-use sandbox runtime for AI Agents<br/>
-    — an open-source alternative to <a href="https://docs.blaxel.ai/Sandboxes/Overview">Blaxel Sandbox</a> and <a href="https://e2b.dev/">E2B</a>.
   </p>
-</div>
-
-<div align="center">
-<h3>Agent Use Sandbox Demo</h3>
-<video src="https://github.com/user-attachments/assets/819c8534-a759-4ad0-9be5-7f95e6757168" autoplay loop muted playsinline >
-    Your browser does not support the video tag.
-</video>
-<br/>
-<br/>
-<picture >
-  <img alt="agent-sandbox" src="https://github.com/user-attachments/assets/00c80583-8372-42cb-8cf0-8ae9e83f1454">
-</picture>
 </div>
 
 ---
@@ -60,25 +47,66 @@ So we built **Agent-Sandbox**: it wraps that same Kubernetes foundation behind a
 ## Architecture
 ```mermaid
 flowchart TD
-    A1([Agent A]):::agent -->|Execute Code| ASB
-    A2([Agent B]):::agent -->|Browse Web| ASB
-    A3([Agent C]):::agent -->|Terminal Access| ASB(Agent-Sandbox <br/> Auto CRUD Sandboxes)
-    A4([Agent ...]):::agent -->|...| ASB
+    subgraph AGENTS["AI Agents"]
+        direction TB
+        CC(["Claude Code"]):::agent
+        OC(["OpenClaw"]):::agent
+        OT(["Other AI Agent ..."]):::agent
+    end
 
-    ASB -->SB1{{Code Sandbox}}
-    ASB -->SB2{{Browser Sandbox}}
-    ASB -->SB3{{Computer Sandbox}}
-    ASB -->SB4{{Customized Sandbox}}
+    subgraph USER["User"]
+        direction TB
+        UI(["UI"]):::human
+        UAPI(["API"]):::human
+    end
 
-    SB1 <-->|File R/W| V
-    SB2 <-->|State Persistence| V
-    SB3 <-->|Shared Storage| V
-    SB4 <--> V[Unified Storage <br/> NAS / OSS / S3]
+    subgraph ASBGROUP["Agent-Sandbox Component"]
+        direction TB
+        APIS(["API Server<br/>CRUD API, Gateway router"]):::core
+        CTL(["Controller<br/>Lifecycle control"]):::core
+        APIS <-->|shared state| CTL
+    end
 
-    V --- K[Kubernetes Cluster]
+    AGENTS -->|SDK / REST API| APIS
+    USER -->|Browse / REST API| APIS
 
-    style ASB fill:#bd3cfe,stroke:#333,stroke-width:0,color:#fff;
-    classDef agent fill:#f9f,stroke:#333,stroke-width:3px;
+    APIS -->|proxy / pause / resume| SB3
+
+    CTL -.->|create / scale / pause / resume| SB1
+    CTL -.->|create / scale / pause / resume| SB2
+    CTL -.->|create / scale / pause / resume| SB3
+    CTL -.->|create / scale / pause / resume| SB4
+
+    subgraph NET["Kubernetes Cluster — Internal Pod Network"]
+        direction TB
+        SB1[["Code Sandbox<br/>isolated execution"]]:::sandbox
+        SB2[["Browser / Desktop Sandbox<br/>isolated execution"]]:::sandbox
+        SB3[["Service Sandbox<br/>deployed app"]]:::sandboxExt
+        SB4[["Custom Sandbox<br/>your own image"]]:::sandbox
+
+        SB1 <--> SB2
+        SB2 <--> SB3
+        SB3 <--> SB4
+        SB1 <--> SB4
+    end
+
+    classDef agent fill:#f3f1ff,stroke:#7c6cf0,stroke-width:1.5px,color:#4c3fb8
+    classDef human fill:#f8fafc,stroke:#64748b,stroke-width:1.5px,color:#334155
+    classDef core fill:#6c5ce7,stroke:#4c3fb8,stroke-width:1.5px,color:#ffffff
+    classDef sandbox fill:#ecfdf9,stroke:#14b8a6,stroke-width:1.5px,color:#0f766e
+    classDef sandboxExt fill:#fff7e6,stroke:#f59e0b,stroke-width:2px,color:#92400e
+
+    style AGENTS fill:#fbfaff,stroke:#d8d6f5,stroke-width:1px,stroke-dasharray: 3 3,color:#6b7280,rx:14px,ry:14px
+    style USER fill:#f8fafc,stroke:#94a3b8,stroke-width:1.5px,color:#334155,rx:14px,ry:14px
+    style ASBGROUP fill:#ffffff,stroke:#a99dff,stroke-width:1.5px,color:#4c3fb8,rx:14px,ry:14px
+    style NET fill:#fafefe,stroke:#cdeee7,stroke-width:1px,stroke-dasharray: 3 3,color:#6b7280,rx:14px,ry:14px
+
+    linkStyle 0 stroke:#c4b5fd,stroke-width:1px
+    linkStyle 1 stroke:#7c6cf0,stroke-width:1.5px
+    linkStyle 2 stroke:#f59e0b,stroke-width:1.5px
+    linkStyle 3 stroke:#f59e0b,stroke-width:2px
+    linkStyle 4,5,6,7 stroke:#7c6cf0,stroke-width:1.2px,stroke-dasharray: 4 3
+    linkStyle 8,9,10,11 stroke:#14b8a6,stroke-width:1.5px
 ```
 
 # Quick Start
@@ -179,12 +207,8 @@ Default admin login token: <b>sys-2492a85b10ed4cb083b2c76b181eac96</b>
 </div>
 
 
-# 🤝 Contributing
+# Contributing🤝
 
 Agent-Sandbox aims to stay simple, stable, and reliable rather than chasing every feature. That said, contributions genuinely help, whether it's a one-line fix or a new sandbox template. Found a bug, hit a rough edge, or have an idea? [Open an issue](https://github.com/agent-sandbox/agent-sandbox/issues).
 
 If you're using Agent-Sandbox for something interesting, I'd love to hear about it.
-
-# License
-
-[Apache License](./LICENSE)
