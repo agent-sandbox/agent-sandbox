@@ -1,18 +1,26 @@
 [
   {
-    "name": "aio",
-    "image": "ghcr.io/agent-infra/sandbox:latest",
-    "description": "providing a comprehensive environment combines Web Browser, Shell, File, and Code Server. You can use it when you need multi functionalities in one environment, e.g. browsing the web, running shell commands and execution code."
+    "name": "sandbox-base",
+    "image": "ghcr.io/agent-sandbox/sandbox-base:latest",
+    "port": 49983,
+    "description": "sandbox base with python:3.12"
   },
   {
-    "name": "opencode",
-    "image": "ghcr.io/anomalyco/opencode:1.1.16",
-    "description": "providing a complete environment for OpenCode."
+    "name": "sandbox-base-node",
+    "image": "ghcr.io/agent-sandbox/sandbox-base-node:latest",
+    "port": 49983,
+    "description": "sandbox base with node:22"
   },
   {
-    "name": "code-interpreter",
-    "image": "ghcr.io/agent-sandbox/code-interpreter:0.4.0",
-    "port": 49999,
+    "name": "sandbox-base-code",
+    "image": "ghcr.io/agent-sandbox/sandbox-base-code:latest",
+    "port": 49983,
+    "description": "sandbox base with python:3.12 and code interpreter"
+  },
+  {
+    "name": "sandbox-base",
+    "image": "ghcr.io/agent-sandbox/sandbox-base:latest",
+    "port": 49983,
     "resources": {
       "cpu": "0.2",
       "memory": "200Mi",
@@ -23,39 +31,15 @@
       "runtimeClassName": "gvisor",
       "shareDataNFS": "100.100.100.100"
     },
-    "pool": {
-      "size": 0,
-      "probePort": 8888,
-      "warmupCmd": "/root/.server/warmup.sh",
-      "startupCmd": "/root/.server/startup.sh",
-      "resources": {
-        "cpu": "0",
-        "memory": "60Mi",
-        "cpuLimit": "0.2",
-        "memoryLimit": "100Mi"
-      }
-    },
-    "description": "providing a code interpreter environment, E2B featured."
+    "description": "sandbox base with python:3.12 and gvisor runtime"
   },
   {
-    "name": "desktop",
-    "image": "ghcr.io/agent-sandbox/e2b-desktop:0.2.0",
-    "port": 49983,
-    "description": "providing a desktop environment, E2B featured."
-  },
-  {
-    "name": "openclaw",
-    "image": "ghcr.io/agent-sandbox/openclaw:2026.1.29",
-    "port": 18789,
-    "description": "providing a OpenClaw environment"
-  },
-  {
-    "name": "code-interpreter-biz",
+    "name": "sandbox-base-biz",
     "pattern": "faas-code-(?P<name>.+)\\.(?P<version>.+)$",
     "image": "ghcr.io/agent-sandbox/<name>:<version>",
     "type": "dynamic",
     "port": 49999,
-    "description": "providing a dynamic code interpreter environment, E2B featured."
+    "description": "providing a dynamic sandbox-base environment."
   }
 ]
 
