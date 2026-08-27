@@ -22,16 +22,19 @@ A static template has a fixed container image:
 
 ```json
 {
-  "name": "code-interpreter",
-  "image": "ghcr.io/agent-sandbox/code-interpreter:0.4.0",
-  "port": 49999,
+  "name": "sandbox-base",
+  "image": "ghcr.io/agent-sandbox/sandbox-base:latest",
+  "port": 49983,
   "resources": {
     "cpu": "0.2",
     "memory": "200Mi",
     "cpuLimit": "1",
     "memoryLimit": "1Gi"
   },
-  "description": "E2B-compatible code interpreter environment"
+  "metadata": {
+    "shareDataNFS": "100.100.100.100"
+  },
+  "description": "sandbox base with a shared NFS workspace"
 }
 ```
 

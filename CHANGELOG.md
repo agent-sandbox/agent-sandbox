@@ -81,3 +81,7 @@ V0.8.3 - 2026-08-20
 - Fix: Metrics not showing up in some cases due to a query issue; worked around by redundantly setting `event_name` via `log.String("event_name", tlog.LogName)`, #10.
 - Improve: the UI Sandbox list query now supports filtering by Labels (Metadata), #12.
 --------------------------
+V0.8.4 - 2026-08-25
+- Improve: raise the sandbox proxy's response-header timeout from 35s to 5 minutes to fit AI/agent workloads, where time-to-first-byte can be much longer than a typical web backend (long tool-call loops, slow model TTFT under load). This previously surfaced as spurious `net/http: timeout awaiting response headers` errors; only affects the wait for headers, not streaming/SSE response bodies.
+--------------------------
+

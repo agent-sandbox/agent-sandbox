@@ -60,6 +60,8 @@ nav = [
     ]},
     {"Guides" = [
        {"AI Agent Deploying Generated Apps" = "guides/ai_agent_app_deployment.md"},
+       {"Shared Network Storage" = "guides/network_storage.md"},
+       {"Building a Custom Template Image" = "guides/custom_template_image.md"},
        {"E2B SDK Workarounds" = "guides/e2b_workarounds.md"},
     ]}
 ]
