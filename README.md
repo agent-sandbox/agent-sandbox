@@ -6,7 +6,7 @@
   <p>
     <img alt="license" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg">
     <img alt="go version" src="https://img.shields.io/badge/go-1.25-00ADD8?logo=go&logoColor=white">
-    <img alt="version" src="https://img.shields.io/badge/version-0.8.3-brightgreen">
+    <img alt="version" src="https://img.shields.io/github/v/tag/agent-sandbox/agent-sandbox?label=version&color=brightgreen">
     <a href="https://agent-sandbox.github.io"><img alt="docs" src="https://img.shields.io/badge/docs-agent--sandbox.github.io-informational"></a>
   </p>
 
