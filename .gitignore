@@ -30,7 +30,7 @@ go.work.sum
 agent-sandbox
 __pycache__/
 ui/node_modules
-ui/dist
+#ui/dist
 web/site
 
 
