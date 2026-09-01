@@ -86,6 +86,10 @@ func (ahh *ApiHttpHandler) regHandlers() {
 
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/logs/sandbox/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.GetSandboxLogs) })
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/events", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.ListSandboxEvents) })
+	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/sandbox-commands", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.ListSandboxCommandAudits) })
+	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/sandbox-commands/sandboxes", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) {
+		wrapperHandler(w, r, sbHeader.ListSandboxCommandAuditSandboxes)
+	})
 
 	ahh.mux.HandleFunc(fmt.Sprintf("POST %s/terminal/sandbox/{name}", config.Cfg.APIBaseURL), func(w http.ResponseWriter, r *http.Request) { wrapperHandler(w, r, sbHeader.ExecuteSandboxTerminal) })
 	ahh.mux.HandleFunc(fmt.Sprintf("GET %s/terminal/sandbox/{name}/ws", config.Cfg.APIBaseURL), sbHeader.StreamSandboxTerminalWS)
