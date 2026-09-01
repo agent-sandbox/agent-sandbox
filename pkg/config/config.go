@@ -33,7 +33,8 @@ import (
 	"k8s.io/klog/v2"
 )
 
-const Version = "0.8.3"
+// Version is injected at build time via -ldflags "-X .../config.Version=$V"; defaults to "dev" for local builds.
+var Version = "dev"
 
 var Cfg *Config
 var Templates []*Template
