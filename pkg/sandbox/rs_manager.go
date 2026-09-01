@@ -47,20 +47,20 @@ func buildReplicaSet(sb *Sandbox) (*v1.ReplicaSet, error) {
 		RawData:   string(raw),
 		Namespace: config.Cfg.SandboxNamespace,
 	}
-	tmpl, err := template.New(sb.Name).Parse(config.SandboxDeployTemplate)
+	tmpl, err := template.New(sb.Name).Parse(config.SandboxBlueprint)
 	if err != nil {
-		return nil, fmt.Errorf("parse template fail: %v", err)
+		return nil, fmt.Errorf("parse blueprint fail: %v", err)
 	}
 
 	var buf bytes.Buffer
 	err = tmpl.Execute(&buf, tplData)
 	if err != nil {
-		return nil, fmt.Errorf("execute template fail: %v", err)
+		return nil, fmt.Errorf("execute blueprint fail: %v", err)
 	}
 
 	rsObj := &v1.ReplicaSet{}
 	if err = yaml.Unmarshal(buf.Bytes(), rsObj); err != nil {
-		return nil, fmt.Errorf("unmarshal template fail: %v", err)
+		return nil, fmt.Errorf("unmarshal blueprint fail: %v", err)
 	}
 
 	// set startupProbe port to pool probe port if is pool rs
@@ -77,7 +77,7 @@ func buildReplicaSet(sb *Sandbox) (*v1.ReplicaSet, error) {
 // WaitForReplicaSetReady waits for a ReplicaSet to become ready
 func (s *Controller) WaitForReplicaSetReady(sb *Sandbox) error {
 	// waiting 3 minutes since Node staring time(2m) when not enough resources.
-	return wait.PollUntilContextTimeout(context.TODO(), 500*time.Millisecond, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(context.TODO(), 300*time.Millisecond, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
 		rsCreated, err := rsclient.Get(s.rootCtx).Lister().ReplicaSets(config.Cfg.SandboxNamespace).Get(sb.Name)
 		if err != nil {
 			if errors.IsNotFound(err) {

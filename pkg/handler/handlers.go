@@ -187,14 +187,11 @@ func (a *Handler) CreateSandbox(r *http.Request) (interface{}, error) {
 		return nil, fmt.Errorf("user not found, api key may be invalid")
 	}
 
-	if capacity.GlobalLimiter != nil && capacity.GlobalLimiter.Enabled() {
-		release, err := capacity.GlobalLimiter.AcquireCreate(user)
+	if capacity.GlobalLimiter.Enabled() {
+		_, err := capacity.GlobalLimiter.AcquireCreate(user)
 		if err != nil {
 			limitErr := err.(*capacity.LimitError)
 			return nil, &HTTPError{Code: limitErr.Code, Message: limitErr.Message}
-		}
-		if release != nil {
-			defer release()
 		}
 	}
 
@@ -727,20 +724,11 @@ type RuntimeConfigStatus struct {
 	ConfigMapKey           string                       `json:"config_map_key"`
 	SystemToken            string                       `json:"system_token"`
 	APITokensRaw           string                       `json:"api_tokens_raw"`
-	APITokens              []string                     `json:"api_tokens"`
-	APITokensCount         int                          `json:"api_tokens_count"`
 	RateLimit              config.RateLimitConfig       `json:"rate_limit"`
 	RateLimitUsersRaw      string                       `json:"rate_limit_users_raw"`
 	RateLimitUsers         []config.UserRateLimitConfig `json:"rate_limit_users"`
 	SandboxDefaultImage    string                       `json:"sandbox_default_image"`
 	SandboxDefaultTemplate string                       `json:"sandbox_default_template"`
-}
-
-func maskToken(token string) string {
-	if len(token) <= 10 {
-		return "***"
-	}
-	return token[:6] + "..." + token[len(token)-4:]
 }
 
 func requireSystemTokenAccess(r *http.Request) error {
@@ -774,19 +762,12 @@ func buildRuntimeConfigStatus() RuntimeConfigStatus {
 		sandboxDefaultTemplate = *runtimeConfig.SandboxDefaultTemplate
 	}
 
-	tokens := config.ParseAPITokens(systemToken, apiTokensRaw)
-	maskedTokens := make([]string, 0, len(tokens))
-	for _, token := range tokens {
-		maskedTokens = append(maskedTokens, maskToken(token))
-	}
 	rateLimitUsers, _ := config.ParseRateLimitUsers(rateLimitUsersRaw)
 
 	return RuntimeConfigStatus{
 		ConfigMapKey:           config.RuntimeConfigMapKey,
 		SystemToken:            systemToken,
 		APITokensRaw:           apiTokensRaw,
-		APITokens:              maskedTokens,
-		APITokensCount:         len(tokens),
 		RateLimit:              rateLimit,
 		RateLimitUsersRaw:      rateLimitUsersRaw,
 		RateLimitUsers:         rateLimitUsers,
@@ -860,14 +841,14 @@ func (a *Handler) SaveTemplatesConfig(r *http.Request) (interface{}, error) {
 	}
 }
 
-func (a *Handler) GetSandboxTemplateConfig(r *http.Request) (interface{}, error) {
-	return config.Cfg.ReadSandboxTemplateFromCM()
+func (a *Handler) GetSandboxBlueprintConfig(r *http.Request) (interface{}, error) {
+	return config.Cfg.ReadSandboxBlueprintFromCM()
 }
 
-func validateSandboxTemplateContent(content string) error {
-	tmpl, err := template.New("sandbox-template").Parse(content)
+func validateSandboxBlueprintContent(content string) error {
+	tmpl, err := template.New("sandbox-blueprint").Parse(content)
 	if err != nil {
-		return fmt.Errorf("invalid sandbox template syntax: %v", err)
+		return fmt.Errorf("invalid sandbox blueprint syntax: %v", err)
 	}
 
 	sampleSandbox := sandbox.GetDefaultSandbox()
@@ -882,18 +863,18 @@ func validateSandboxTemplateContent(content string) error {
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, tplData); err != nil {
-		return fmt.Errorf("failed to render sandbox template: %v", err)
+		return fmt.Errorf("failed to render sandbox blueprint: %v", err)
 	}
 
 	rsObj := &appsv1.ReplicaSet{}
 	if err := yaml.Unmarshal(buf.Bytes(), rsObj); err != nil {
-		return fmt.Errorf("rendered sandbox template is not valid ReplicaSet YAML: %v", err)
+		return fmt.Errorf("rendered sandbox blueprint is not valid ReplicaSet YAML: %v", err)
 	}
 
 	return nil
 }
 
-func (a *Handler) SaveSandboxTemplateConfig(r *http.Request) (interface{}, error) {
+func (a *Handler) SaveSandboxBlueprintConfig(r *http.Request) (interface{}, error) {
 	contentBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to read request body: %v", err)
@@ -901,15 +882,15 @@ func (a *Handler) SaveSandboxTemplateConfig(r *http.Request) (interface{}, error
 
 	content := string(contentBytes)
 	if strings.TrimSpace(content) == "" {
-		return "", fmt.Errorf("sandbox template content is required")
+		return "", fmt.Errorf("sandbox blueprint content is required")
 	}
 
-	if err := validateSandboxTemplateContent(content); err != nil {
+	if err := validateSandboxBlueprintContent(content); err != nil {
 		return "", err
 	}
 
-	if err := config.Cfg.SaveSandboxTemplateToCM(content); err != nil {
-		return "", fmt.Errorf("failed to save sandbox template config error: %v", err)
+	if err := config.Cfg.SaveSandboxBlueprintToCM(content); err != nil {
+		return "", fmt.Errorf("failed to save sandbox blueprint config error: %v", err)
 	}
 
 	return "ok", nil

@@ -12,6 +12,7 @@ import (
 	"github.com/agent-sandbox/agent-sandbox/pkg/capacity"
 	"github.com/agent-sandbox/agent-sandbox/pkg/config"
 	"github.com/agent-sandbox/agent-sandbox/pkg/handler"
+	"github.com/agent-sandbox/agent-sandbox/pkg/leader"
 	"github.com/agent-sandbox/agent-sandbox/pkg/sandbox"
 	"github.com/agent-sandbox/agent-sandbox/pkg/scaler"
 	"github.com/agent-sandbox/agent-sandbox/pkg/telemetry"
@@ -68,11 +69,10 @@ func main() {
 		klog.Fatalf("Failed to initialize metrics client: %v", err)
 	}
 
-	// bootstrap and load runtime configuration from configmap
+	// Watch the runtime ConfigMap on every replica (read-only). Leader writes
+	// the initial ConfigMap once it's elected (below); followers pick up the
+	// change via this watcher and apply it to their local config.Cfg.
 	cfg.KubeClient = kubeClient
-	cfg.CheckAndSaveConfigToConfigmap()
-
-	// watch configmap for dynamic update
 	configMapWatcher := configmapinformer.NewInformedWatcher(kubeClient, cfg.SandboxNamespace)
 	configMapWatcher.Watch(config.Cfg.ConfigmapName, config.WatchConfigMap())
 	if err := configMapWatcher.Start(rootCtx.Done()); err != nil {
@@ -102,21 +102,31 @@ func main() {
 	c := sandbox.NewController(rootCtx, kubecfg, pl, eventRecoder)
 	c.MetricsClient = metricsClient
 
-	// Start the autoscaler
-	go func() {
-		s := scaler.NewScaler(rootCtx, a, c)
-		klog.Info("Starting timeout and idle timeout  scaler")
-		s.RunScaling()
-	}()
-
-	go func() {
-		// Start the pool syncer
-		klog.Info("Starting pool syncer")
-		pl.StartPoolSyncing()
-	}()
-
-	// Start the capacity manager
+	// Start the capacity manager (read-only against informers — safe on every replica).
 	capacity.Init(c)
+
+	// Run cluster-wide side-effecting work on a single replica only. The
+	// elected leader bootstraps the runtime ConfigMap, runs the scaler, and
+	// drives the pool syncer. Every other replica keeps serving HTTP, reading
+	// the ConfigMap watcher, and proxying sandbox traffic.
+	go leader.RunAsLeader(rootCtx, leader.Config{
+		LeaseName: cfg.LeaderName,
+		Namespace: cfg.SandboxNamespace,
+		Client:    kubeClient,
+	}, func(ctx context.Context) {
+		cfg.CheckAndSaveConfigToConfigmap()
+
+		go func() {
+			s := scaler.NewScaler(ctx, a, c)
+			s.RunScaling()
+		}()
+
+		if cfg.PoolEnable {
+			go func() {
+				pl.StartPoolSyncing(ctx)
+			}()
+		}
+	})
 
 	// Init lifecycle-event telemetry. No-op when Telemetry.Enabled is false.
 	telemetry.Init(rootCtx, telemetry.Settings{

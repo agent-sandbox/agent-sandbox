@@ -15,8 +15,6 @@ const emptyRuntimeConfig: RuntimeConfigDraft = {
   config_map_key: 'config-runtime',
   system_token: '',
   api_tokens_raw: '',
-  api_tokens: [],
-  api_tokens_count: 0,
   rate_limit: {
     enabled: false,
     max_concurrency: '0',
@@ -109,7 +107,6 @@ export default function RuntimeConfigPage() {
       ...emptyRuntimeConfig,
       ...data,
       api_tokens_raw: formatApiTokensRaw(data.api_tokens_raw),
-      api_tokens: Array.isArray(data.api_tokens) ? data.api_tokens : [],
       rate_limit_users_raw: formatJsonArray(data.rate_limit_users_raw),
       rate_limit_users: Array.isArray(data.rate_limit_users) ? data.rate_limit_users : [],
       rate_limit: {
@@ -225,22 +222,13 @@ export default function RuntimeConfigPage() {
         </section>
       )}
 
-      <section className="grid gap-3 md:grid-cols-3">
+      <section className="grid gap-3 md:grid-cols-2">
         <div className="card border border-base-300 bg-base-100 shadow-sm">
           <div className="card-body gap-2 py-4">
             <h3 className="card-title text-lg">Capacity Limit</h3>
             <div className="stat p-0">
               <div className={`stat-value text-3xl ${runtimeConfig.rate_limit.enabled ? 'text-success' : 'text-warning'}`}>{runtimeConfig.rate_limit.enabled ? 'Enabled' : 'Disabled'}</div>
               <div className="stat-desc">Sandbox creation guard</div>
-            </div>
-          </div>
-        </div>
-        <div className="card border border-base-300 bg-base-100 shadow-sm">
-          <div className="card-body gap-2 py-4">
-            <h3 className="card-title text-lg">API Tokens</h3>
-            <div className="stat p-0">
-              <div className="stat-value text-3xl">{runtimeConfig.api_tokens_count}</div>
-              <div className="stat-desc">Effective valid tokens</div>
             </div>
           </div>
         </div>

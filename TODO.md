@@ -11,8 +11,9 @@
 1. - [x] Sandbox proxy(router) rate limiting
 1. - [ ] Metrics exporting
 1. - [ ] Resources reservation
-1. - [ ] Leader election for high availability
-1. - [ ] Sandbox Snapshot
-1. - [ ] Use lease instead event to optimize idle timeout performance
-1. - [ ] Telemetry data reporting by logs
+1. - [x] Leader election for high availability
+1. - [x] Sandbox Snapshot
+1. - [x] Use lease instead event to optimize idle timeout performance
+1. - [x] Telemetry data reporting by logs
+1. - [ ] Update Sandbox config e.g. resources, env, args, etc. by create with sandbox id, e.g. create(metadata:{sandbox_id:xxx}).
 

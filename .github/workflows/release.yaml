@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9]*.[0-9]*.[0-9]*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (only used for manual runs)'
+        required: true
+        default: '0.0.0-test'
+      push:
+        description: 'Actually push the image to ghcr.io'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Build agent-sandbox binary
+        env:
+          CGO_ENABLED: 0
+          GOARCH: amd64
+          GOOS: linux
+        run: |
+          V=${{ steps.version.outputs.value }}
+          go build -ldflags "-X github.com/agent-sandbox/agent-sandbox/pkg/config.Version=$V" -o agent-sandbox
+
+      - name: Log in to ghcr.io
+        if: github.event_name == 'push' || inputs.push
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        run: |
+          V=${{ steps.version.outputs.value }}
+          IMAGE=ghcr.io/agent-sandbox/agent-sandbox:$V
+          IMAGE_LATEST=ghcr.io/agent-sandbox/agent-sandbox:latest
+          docker build -t $IMAGE -t $IMAGE_LATEST .
+
+      - name: Push image
+        if: github.event_name == 'push' || inputs.push
+        run: |
+          V=${{ steps.version.outputs.value }}
+          IMAGE=ghcr.io/agent-sandbox/agent-sandbox:$V
+          IMAGE_LATEST=ghcr.io/agent-sandbox/agent-sandbox:latest
+          docker push $IMAGE
+          docker push $IMAGE_LATEST

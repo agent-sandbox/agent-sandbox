@@ -25,13 +25,13 @@ profile.cov
 go.work
 go.work.sum
 
-# env file
-.env
-
 # Editor/IDE
 .idea/
 agent-sandbox
 __pycache__/
 ui/node_modules
-ui/dist
+#ui/dist
 web/site
+
+
+examples/**/.env

@@ -88,7 +88,7 @@ func (s *SandboxRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("failed to acquire destination ip for sandbox %s: %v, possible instance is not ready yet, please retry later or checking pod status!", name, err), http.StatusBadGateway)
 		return
 	}
-	s.activator.RecordActiveEvent(activator.EventTypeLastRequest, name)
+	s.activator.RecordActive(name)
 
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	proxy.Transport = s.SharedTransport
@@ -113,7 +113,6 @@ func (s *SandboxRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	rw := NewResponseWare(w, http.StatusOK)
 	proxy.ServeHTTP(rw, r)
-	//s.activator.RecordActiveEvent(activator.EventTypeLastResponse, name)
 	klog.Info("route completed request to sandbox ", name)
 	return
 }

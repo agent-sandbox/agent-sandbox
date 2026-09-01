@@ -28,8 +28,16 @@ import (
 )
 
 const (
-	sandboxProxyDialMaxAttempts = 6
-	sandboxProxyDialRetryDelay  = 500 * time.Millisecond
+	sandboxProxyDialMaxAttempts = 20
+	sandboxProxyDialRetryDelay  = 300 * time.Millisecond
+
+	// sandboxResponseHeaderTimeout bounds how long we wait for the sandbox app to
+	// send response headers. AI/agent workloads (long tool-call loops, slow model
+	// TTFT under load) can legitimately take much longer than a typical web
+	// backend before writing the first byte. This only bounds the
+	// wait for headers — once headers arrive, streaming/SSE response bodies can
+	// run indefinitely (not subject to this timeout).
+	sandboxResponseHeaderTimeout = 5 * time.Minute
 )
 
 func dialContextWithRetry(dialer *net.Dialer) func(context.Context, string, string) (net.Conn, error) {
@@ -69,7 +77,7 @@ func getTransport() *http.Transport {
 
 		TLSHandshakeTimeout: 5 * time.Second,
 
-		ResponseHeaderTimeout: 35 * time.Second,
+		ResponseHeaderTimeout: sandboxResponseHeaderTimeout,
 
 		MaxIdleConns:        2000,
 		MaxIdleConnsPerHost: 30,

@@ -34,6 +34,8 @@ import (
 func AcquireDest(rootCtx context.Context, name string, port string) (*url.URL, error) {
 	selector, _ := labels.Parse(fmt.Sprintf("sandbox=" + name))
 
+	destIP := ""
+	var destPod *v1.Pod
 	var pods []*v1.Pod
 	var err error
 
@@ -46,22 +48,25 @@ func AcquireDest(rootCtx context.Context, name string, port string) (*url.URL, e
 		if len(pods) == 0 {
 			return false, fmt.Errorf("pod not found")
 		}
+
+		// wait for pod to be got ip
+		destPod = pods[rand.Intn(len(pods))]
+		destIP = destPod.Status.PodIP
+		if destIP == "" {
+			return false, fmt.Errorf("sandbox pod IP not found")
+		}
+
 		return true, nil
 	}); perr != nil {
 		return nil, fmt.Errorf("timeout waiting for get pods for sandbox %v error: %v", name, perr)
 	}
 
-	pod := pods[rand.Intn(len(pods))]
-	ip := pod.Status.PodIP
 	// read port from first container port if not specified
 	if port == "0" {
-		port = strconv.FormatInt(int64(pod.Spec.Containers[0].Ports[0].ContainerPort), 10)
-	}
-	if ip == "" {
-		return nil, fmt.Errorf("sandbox pod IP not found")
+		port = strconv.FormatInt(int64(destPod.Spec.Containers[0].Ports[0].ContainerPort), 10)
 	}
 
-	targetURL, _ := url.Parse(fmt.Sprintf("http://%s:%s", ip, port))
+	targetURL, _ := url.Parse(fmt.Sprintf("http://%s:%s", destIP, port))
 
 	return targetURL, nil
 }

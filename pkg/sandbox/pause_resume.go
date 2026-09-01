@@ -24,6 +24,7 @@ import (
 	"github.com/agent-sandbox/agent-sandbox/pkg/activator"
 	"github.com/agent-sandbox/agent-sandbox/pkg/config"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	v1meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 )
@@ -83,6 +84,20 @@ func (s *Controller) SandboxProcessSnapshot(sb *Sandbox) error {
 	return err
 }
 
+func (s *Controller) DeleteProcessSnapshot(sb *Sandbox) error {
+	rsCopy := sb.ReplicaSet.DeepCopy()
+	annotations := rsCopy.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+
+	annotations[AnnotationProcessSnapshot] = ""
+	rsCopy.SetAnnotations(annotations)
+
+	_, err := s.kclient.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Update(context.TODO(), rsCopy, v1meta.UpdateOptions{})
+	return err
+}
+
 func (s *Controller) Resume(sb *Sandbox, reason string) error {
 	if deriveSandboxStatus(sb.ReplicaSet) != Paused {
 		return nil
@@ -103,19 +118,30 @@ func (s *Controller) Resume(sb *Sandbox, reason string) error {
 
 	replicas := int32(1)
 	rsCopy.Spec.Replicas = &replicas
-	if _, err := s.kclient.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Update(context.TODO(), rsCopy, v1meta.UpdateOptions{}); err != nil {
+	_, err := s.kclient.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Update(context.TODO(), rsCopy, v1meta.UpdateOptions{})
+	switch {
+	case err == nil:
+		sb.ReplicaSet = rsCopy
+	case errors.IsConflict(err):
+		// Another concurrent Resume call already won the race and will
+		// restore the process snapshot itself; just wait for the pod it
+		// brings up instead of failing this request.
+		klog.Infof("Sandbox %s resume update conflicted, another caller is already resuming it", sb.Name)
+		snapshot = ""
+	default:
 		s.EventResume(sb, reason, err)
 		return err
 	}
 
-	sb.ReplicaSet = rsCopy
 	if err := s.WaitForReplicaSetReady(sb); err != nil {
 		s.EventResume(sb, reason, err)
 		return err
 	}
-	if err := s.restoreProcessSnapshot(sb, snapshot); err != nil {
-		s.EventResume(sb, reason, err)
-		return err
+	if snapshot != "" {
+		if err := s.restoreProcessSnapshot(sb, snapshot); err != nil {
+			s.EventResume(sb, reason, err)
+			return err
+		}
 	}
 
 	s.EventResume(sb, reason, nil)

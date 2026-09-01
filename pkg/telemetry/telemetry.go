@@ -176,6 +176,7 @@ func emitTLogRecord(l log.Logger, tlog TLog) {
 	rec.SetBody(log.StringValue(tlog.Message))
 	rec.AddAttributes(
 		log.String("request_id", tlog.RequestID),
+		log.String("event_name", tlog.LogName),
 		log.Bool("success", tlog.Success),
 		log.String("user_key", tlog.Sbx.UserKey),
 		log.String("sandbox_id", tlog.Sbx.SandboxID),

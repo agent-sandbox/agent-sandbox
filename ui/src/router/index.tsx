@@ -15,7 +15,7 @@ import RateLimitPage from '../pages/RateLimitPage'
 import RuntimeConfigPage from '../pages/RuntimeConfigPage'
 import SandboxesPage from '../pages/SandboxesPage'
 import SandboxCommandsPage from '../pages/SandboxCommandsPage'
-import SandboxTemplateConfigPage from '../pages/SandboxTemplateConfigPage'
+import SandboxBlueprintConfigPage from '../pages/SandboxBlueprintConfigPage'
 import TemplatesConfigPage from '../pages/TemplatesConfigPage'
 import TerminalPage from '../pages/TerminalPage'
 
@@ -102,8 +102,8 @@ export const appRouter = createHashRouter([
             element: <TemplatesConfigPage />,
           },
           {
-            path: 'config/sandbox-template',
-            element: <SandboxTemplateConfigPage />,
+            path: 'config/blueprint',
+            element: <SandboxBlueprintConfigPage />,
           },
           {
             path: 'config/runtime',

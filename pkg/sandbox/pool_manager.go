@@ -48,8 +48,16 @@ type poolCandidate struct {
 }
 
 type PoolManager struct {
-	client         kubernetes.Interface
-	rootCtx        context.Context
+	client  kubernetes.Interface
+	rootCtx context.Context
+
+	// replenishQueue is recreated for each leadership term by StartPoolSyncing
+	// and set back to nil when the term ends. It must only be accessed under
+	// replenishMu, since request-path enqueues run on every replica while the
+	// syncer loop only runs on the current leader. A workqueue cannot be reused
+	// after ShutDown(), so a shared long-lived queue would go permanently dead
+	// after the first leadership loss — hence one queue per term.
+	replenishMu    sync.Mutex
 	replenishQueue workqueue.RateLimitingInterface
 
 	candidateLock sync.Mutex
@@ -61,9 +69,10 @@ type PoolManager struct {
 func NewPoolManager(ctx context.Context) *PoolManager {
 	c := kubeclient.Get(ctx)
 	pm := &PoolManager{
-		client:              c,
-		rootCtx:             ctx,
-		replenishQueue:      workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		client:  c,
+		rootCtx: ctx,
+		// replenishQueue is left nil until this replica is elected leader and
+		// StartPoolSyncing installs a term-scoped queue.
 		candidateByTemplate: make(map[string]map[string]*poolCandidate),
 	}
 	pm.registerReplicaSetEventHandler()
@@ -264,7 +273,7 @@ func (pm *PoolManager) AcquirePoolReplicaSet(sb *Sandbox) (*v1.ReplicaSet, bool,
 			continue
 		}
 
-		pm.replenishQueue.AddAfter("replenish", 1*time.Second)
+		pm.enqueueReplenish(1 * time.Second)
 		return acquiredRS, true, nil
 	}
 }
@@ -391,7 +400,43 @@ func (pm *PoolManager) createSingleReplicaSet(sb *Sandbox) (*v1.ReplicaSet, erro
 	return createdRS, nil
 }
 
-func (pm *PoolManager) StartPoolSyncing() {
+// StartPoolSyncing runs the pool replenishment loop until ctx is canceled.
+// Use the leader-election context so this loop stops as soon as the replica
+// loses leadership — keeping a stale syncer running would race with the new
+// leader's syncer.
+// enqueueReplenish schedules a pool replenishment. It runs on the request path
+// on every replica, but only the current leader has a live queue to consume it;
+// on followers (queue == nil) it is a no-op, so items don't accumulate on
+// replicas that never drain them.
+func (pm *PoolManager) enqueueReplenish(after time.Duration) {
+	pm.replenishMu.Lock()
+	q := pm.replenishQueue
+	pm.replenishMu.Unlock()
+	if q == nil {
+		return
+	}
+	q.AddAfter("replenish", after)
+}
+
+// StartPoolSyncing drives pool replenishment for one leadership term. It is
+// re-invoked by the leader-election callback on every re-election, so it must
+// not depend on state that a previous term tore down: it installs a fresh
+// term-scoped queue and shuts that queue down when ctx is canceled (leadership
+// lost). Returns when ctx is done.
+func (pm *PoolManager) StartPoolSyncing(ctx context.Context) {
+	klog.Info("pool syncer started")
+
+	// A fresh queue per leadership term: a workqueue cannot be revived after
+	// ShutDown(), so reusing one across terms would leave the syncer dead after
+	// the first leadership loss.
+	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	pm.replenishMu.Lock()
+	pm.replenishQueue = queue
+	pm.replenishMu.Unlock()
+
+	// Replenish immediately on becoming leader instead of waiting a full tick.
+	queue.Add("replenish")
+
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
@@ -399,25 +444,33 @@ func (pm *PoolManager) StartPoolSyncing() {
 		for {
 			select {
 			case <-ticker.C:
-				pm.replenishQueue.Add("replenish")
-			case <-pm.rootCtx.Done():
-				pm.replenishQueue.ShutDown()
+				queue.Add("replenish")
+			case <-ctx.Done():
+				queue.ShutDown()
 				return
 			}
 		}
 	}()
 
 	for {
-		item, shutdown := pm.replenishQueue.Get()
+		item, shutdown := queue.Get()
 		if shutdown {
-			klog.Info("Scaler stopping")
+			klog.Info("pool syncer stopping")
+			// Drop the shared reference so request-path enqueues become no-ops
+			// until the next term installs a new queue. Guard against a faster
+			// re-election having already installed a newer queue.
+			pm.replenishMu.Lock()
+			if pm.replenishQueue == queue {
+				pm.replenishQueue = nil
+			}
+			pm.replenishMu.Unlock()
 			return
 		}
 
 		func() {
-			defer pm.replenishQueue.Done(item)
+			defer queue.Done(item)
 			pm.replenishPoolAsync()
-			pm.replenishQueue.Forget(item)
+			queue.Forget(item)
 		}()
 	}
 }

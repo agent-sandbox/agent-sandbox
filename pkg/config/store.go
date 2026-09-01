@@ -7,14 +7,15 @@ import (
 
 const TemplatesConfigMapKey = "config-templates"
 
-// SandboxTemplateConfigMapKey sandbox template is k8s Resource Definition(ReplicasSet) for sandbox
-const SandboxTemplateConfigMapKey = "config-sandbox-template"
+// SandboxBlueprintConfigMapKey holds the sandbox blueprint: the k8s Resource
+// Definition (ReplicaSet) Go template used to deploy each sandbox.
+const SandboxBlueprintConfigMapKey = "config-sandbox-template"
 
 const RuntimeConfigMapKey = "config-runtime"
 
 func WatchConfigMap() func(configMap *corev1.ConfigMap) {
 	var lastTemplatesContent string
-	var lastSandboxTemplateContent string
+	var lastSandboxBlueprintContent string
 	var lastRuntimeConfigContent string
 
 	return func(configMap *corev1.ConfigMap) {
@@ -25,11 +26,11 @@ func WatchConfigMap() func(configMap *corev1.ConfigMap) {
 			lastTemplatesContent = templatesContent
 		}
 
-		sandboxTemplateContent := configMap.Data[SandboxTemplateConfigMapKey]
-		if sandboxTemplateContent != "" && sandboxTemplateContent != lastSandboxTemplateContent {
-			klog.Info("watching ConfigMap changed, sandbox template content updated, content=", sandboxTemplateContent)
-			SandboxDeployTemplate = sandboxTemplateContent
-			lastSandboxTemplateContent = sandboxTemplateContent
+		sandboxBlueprintContent := configMap.Data[SandboxBlueprintConfigMapKey]
+		if sandboxBlueprintContent != "" && sandboxBlueprintContent != lastSandboxBlueprintContent {
+			klog.Info("watching ConfigMap changed, sandbox blueprint content updated, content=", sandboxBlueprintContent)
+			SandboxBlueprint = sandboxBlueprintContent
+			lastSandboxBlueprintContent = sandboxBlueprintContent
 		}
 
 		runtimeConfigContent, ok := configMap.Data[RuntimeConfigMapKey]

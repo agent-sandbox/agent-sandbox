@@ -205,7 +205,7 @@ func validAndRestValueOfSandbox(sb *Sandbox) error {
 
 func (sb *Sandbox) ToString() string {
 	sbTmp := *sb
-	sbTmp.User = sbTmp.User[:20]
+	sbTmp.User = MaskUserKey(sbTmp.User)
 	sbStr, _ := json.Marshal(sbTmp)
 	return string(sbStr)
 }
@@ -264,6 +264,9 @@ func (sb *Sandbox) Make() error {
 	}
 
 	// merge template metadata and sandbox metadata, sandbox metadata has higher priority
+	if sb.Metadata == nil {
+		sb.Metadata = make(map[string]string)
+	}
 	if t.Metadata != nil {
 		for k, v := range t.Metadata {
 			if _, ok := sb.Metadata[k]; !ok {
@@ -287,14 +290,24 @@ func (sb *Sandbox) Make() error {
 	}
 
 	if sb.Name == "" {
-		prefix := t.Name
+		prefix := time.Now().UnixMilli() //1784267297000
+
+		userSig := "default"
+		if sb.User != "" {
+			// remove e2b_ prefix, e.g. e2b_testuser-aef134ef-7aa1-945e-9399-7df9a4ad0c3f
+			userSig = strings.TrimPrefix(sb.User, "e2b_")
+			l := len(userSig)
+			if l > 10 {
+				l = 10
+			}
+			userSig = userSig[:l]
+		}
 
 		// k8s name max length is 63
-		// take first 16 chars of id to make name more unique
-		postFix := id[:20]
-		sb.Name = fmt.Sprintf("sbx-%s-%s", prefix, postFix)
-		if len(sb.Name) > 63 {
-			sb.Name = sb.Name[:63]
+		postfix := id[:20]
+		sb.Name = fmt.Sprintf("sbx-%s-%d-%s", userSig, prefix, postfix)
+		if len(sb.Name) > 60 {
+			sb.Name = sb.Name[:60]
 		}
 	}
 
@@ -317,4 +330,15 @@ type SandboxKube struct {
 	Sandbox   *Sandbox
 	RawData   string
 	Namespace string
+}
+
+// MaskUserKey keeps the leading 2/3 of a user key (matches pkg/telemetry's
+// maskUser). Public endpoints use this so anonymous callers can't read the
+// full identity even when per-user counters are exposed.
+func MaskUserKey(s string) string {
+	n := len(s) * 2 / 3
+	if n < 1 {
+		return s
+	}
+	return s[:n]
 }

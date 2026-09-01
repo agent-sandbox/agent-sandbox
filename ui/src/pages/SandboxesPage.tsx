@@ -266,6 +266,8 @@ export default function SandboxesPage() {
   const [isAutoRefresh, setIsAutoRefresh] = useState(true)
   const [refreshIntervalMs, setRefreshIntervalMs] = useState(5000)
   const [sortKey, setSortKey] = useState<SandboxSortKey>('created-desc')
+  const [filterKey, setFilterKey] = useState('')
+  const [filterValue, setFilterValue] = useState('')
 
   const inflightNamesRef = useRef<Set<string>>(new Set())
   const requestSerialByNameRef = useRef<Record<string, number>>({})
@@ -443,8 +445,37 @@ export default function SandboxesPage() {
     }
   }, [metricsByName, sandboxes])
 
+  const metadataFacets = useMemo(() => {
+    const byKey = new Map<string, Set<string>>()
+    for (const sandbox of sandboxes) {
+      for (const [key, value] of Object.entries(sandbox.metadata ?? {})) {
+        if (!byKey.has(key)) {
+          byKey.set(key, new Set())
+        }
+        byKey.get(key)?.add(value)
+      }
+    }
+    return [...byKey.entries()]
+      .map(([key, values]) => [key, [...values].sort((a, b) => a.localeCompare(b))] as const)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+  }, [sandboxes])
+
+  const filterValues = useMemo(
+    () => metadataFacets.find(([key]) => key === filterKey)?.[1] ?? [],
+    [metadataFacets, filterKey],
+  )
+
   const sortedSandboxes = useMemo(() => {
-    const next = [...sandboxes]
+    const next = sandboxes.filter((sandbox) => {
+      if (filterKey === '') {
+        return true
+      }
+      const value = (sandbox.metadata ?? {})[filterKey]
+      if (value === undefined) {
+        return false
+      }
+      return filterValue === '' || value === filterValue
+    })
 
     next.sort((a, b) => {
       if (sortKey === 'created-desc') {
@@ -465,7 +496,7 @@ export default function SandboxesPage() {
     })
 
     return next
-  }, [sandboxes, sortKey])
+  }, [sandboxes, sortKey, filterKey, filterValue])
 
   const isDeleteDisabled = (sandboxName: string) => !sandboxName || Boolean(deletingName)
 
@@ -607,6 +638,45 @@ export default function SandboxesPage() {
                 </label>
 
                 <label className="flex items-center gap-2">
+                  <span className="text-sm">Label</span>
+                  <select
+                    className="select select-sm select-bordered"
+                    value={filterKey}
+                    onChange={(event) => {
+                      setFilterKey(event.target.value)
+                      setFilterValue('')
+                    }}
+                  >
+                    <option value="">All sandboxes</option>
+                    {metadataFacets.map(([key]) => (
+                      <option key={key} value={key}>
+                        {key}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {filterKey !== '' && (
+                  <label className="flex items-center gap-2">
+                    <input
+                      className="input input-sm input-bordered w-52"
+                      type="search"
+                      list="sandbox-label-values"
+                      placeholder={`${filterValues.length} value${filterValues.length === 1 ? '' : 's'} — type to search`}
+                      value={filterValue}
+                      onChange={(event) => {
+                        setFilterValue(event.target.value)
+                      }}
+                    />
+                    <datalist id="sandbox-label-values">
+                      {filterValues.map((value) => (
+                        <option key={value} value={value} />
+                      ))}
+                    </datalist>
+                  </label>
+                )}
+
+                <label className="flex items-center gap-2">
                   <span className="text-sm">Sort</span>
                   <select className="select select-sm select-bordered" value={sortKey} onChange={handleSortChange}>
                     <option value="created-desc">Created (newest first)</option>
@@ -667,7 +737,7 @@ export default function SandboxesPage() {
                   {sortedSandboxes.length === 0 ? (
                     <tr>
                       <td className="text-center text-base-content/70" colSpan={10}>
-                        {isListLoading ? 'Loading sandboxes...' : 'No sandboxes found.'}
+                        {isListLoading ? 'Loading sandboxes...' : filterKey !== '' && sandboxes.length > 0 ? 'No sandboxes match the selected label.' : 'No sandboxes found.'}
                       </td>
                     </tr>
                   ) : (
@@ -688,6 +758,27 @@ export default function SandboxesPage() {
                                 {sandbox.id || '-'}
                               </a>
                             </div>
+                            {sandbox.metadata && Object.keys(sandbox.metadata).length > 0 && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {Object.entries(sandbox.metadata).map(([key, value]) => {
+                                  const isActive = filterKey === key && filterValue === value
+                                  return (
+                                    <button
+                                      key={key}
+                                      className={`badge badge-sm font-normal ${isActive ? 'badge-primary' : 'badge-ghost'}`}
+                                      type="button"
+                                      title={isActive ? 'Clear filter' : `Show only ${key}=${value}`}
+                                      onClick={() => {
+                                        setFilterKey(isActive ? '' : key)
+                                        setFilterValue(isActive ? '' : value)
+                                      }}
+                                    >
+                                      {key}={value}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            )}
                           </td>
                           <td>{sandbox.template || '-'}</td>
                           <td>{sandbox.image || '-'}</td>
@@ -703,8 +794,8 @@ export default function SandboxesPage() {
                           <td>{typeof sandbox.timeout === 'number' ? `${sandbox.timeout}s` : '-'}</td>
                           <td>{formatCreatedAt(sandbox.created_at)}</td>
                           <td className="text-right">
-                            <div className="text-center">
-                              <div className="mb-2 w-35">
+                            <div className="text-center justify-center">
+                              <div className="mb-2 ">
                                 <button
                                   className="btn btn-xs btn-outline mr-2"
                                   type="button"

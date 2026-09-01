@@ -56,7 +56,7 @@ nav = [
        {"命令行工具" = "cli.md"},
         {"配置" = [
             {"环境变量" = "env.md"},
-            {"沙盒模板" = "sandbox-template.md"},
+            {"蓝图" = "blueprint.md"},
             {"模板" = "templates.md"}
         ]}
     ]},
@@ -324,5 +324,5 @@ toggle.name = "Switch to light mode"
 [project.extra]
 alternate = [
     { name = "English", link = "/", lang = "en" },
-    { name = "中文", link = "/zh/", lang = "zh" }
+    #{ name = "中文", link = "/zh/", lang = "zh" }
 ]

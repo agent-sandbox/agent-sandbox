@@ -59,3 +59,31 @@ V0.7.0 - 2026-06-24
 - Add: Sandbox Snapshot feature, which can snapshot the commands started in a sandbox and automatically re-start them on resume.
 - Add: Telemetry reporting feature, supporting reporting of sandbox creation, destruction, error, and other log data, making it easier to monitor and analyze sandbox usage.
 --------------------------
+V0.8.0 - 2026-07-10
+- Add: Leader election for the Sandbox Controller to support multi-instance (HA) deployment. Pool replenishment and scaler runs only on the leader, while every replica keeps serving API and proxy traffic. 
+- Add: cluster status endpoint (`GET /api/v1/status`) return whole base info.
+- Add: Sandbox Snapshot SDK operations, e.g. `sbx.create_snapshot(); sbx.delete_snapshot()`; the snapshot content is returned when fetching sandbox info.
+- Change: rename Sandbox-Template to Sandbox-Blueprint to avoid confusion with the Templates concept.
+--------------------------
+V0.8.1 - 2026-08-05
+- Improve: track sandbox last-active time with a per-sandbox Kubernetes Lease instead of Events, reducing kube-apiserver load in the idle-timeout scaler (a single Lease Get instead of listing and scanning Events per sandbox).
+- Improve: configure the leader identity via the `LeaderName` environment variable, defaulting to `agent-sandbox-leader`.
+- Improve: strengthen sandbox naming robustness by adding a timestamp and user-key prefix.
+--------------------------
+V0.8.2 - 2026-08-18
+- Fix: sandbox creation failure caused by an exception when assigning template metadata onto an empty sandbox metadata.
+- Improve: AI Deploy Skill, pin the SDK version and correct external references in the AI Deploy Skill.
+- Improve: Templates, WORKDIR environment variable and permission settings in templates.
+- Improve: Sandbox List API now supports pagination and metadata filtering (`?limit=100&metadata=workspace%3D<existing>`), #11.
+--------------------------
+V0.8.3 - 2026-08-20
+- Fix: concurrent Resume requests on the same paused sandbox could conflict when updating the ReplicaSet and fail; the loser now detects the conflict and simply waits for the winner's pod instead of erroring.
+- Fix: Metrics not showing up in some cases due to a query issue; worked around by redundantly setting `event_name` via `log.String("event_name", tlog.LogName)`, #10.
+- Improve: the UI Sandbox list query now supports filtering by Labels (Metadata), #12.
+--------------------------
+V0.8.4 - 2026-09-01
+- Improve: raise the sandbox proxy's response-header timeout from 35s to 5 minutes to fit AI/agent workloads, where time-to-first-byte can be much longer than a typical web backend (long tool-call loops, slow model TTFT under load). This previously surfaced as spurious `net/http: timeout awaiting response headers` errors; only affects the wait for headers, not streaming/SSE response bodies.
+- Fix: process snapshot being cleared to empty when fetching processes fails.
+- Improve: automated build now injects the version via `-ldflags` instead of a hardcoded version string.
+--------------------------
+

@@ -25,13 +25,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
-func (s *Scaler) ScalingDownOfTimeout() {
-	sbs, err := s.controller.ListAll()
-	if err != nil {
-		klog.Error("Failed to list sandboxes for scaling down: ", err)
-		return
-	}
-
+func (s *Scaler) ScalingDownOfTimeout(sbs []*sandbox.Sandbox) {
 	for _, sb := range sbs {
 		baseTime := sb.CreatedAt
 		if resumedAt := sb.ReplicaSet.Annotations[sandbox.AnnotationResumedAt]; resumedAt != "" {

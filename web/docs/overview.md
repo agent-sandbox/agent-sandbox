@@ -8,10 +8,9 @@ icon: lucide/rocket
 ![Agent-Sandbox](assets/dark.jpg#only-dark)
 
 
-Agent-Sandbox is an open-source, Kubernetes-native runtime platform for AI agents.
-It provides isolated, stateful, multi-tenant sandboxes for code execution, browser/computer tasks, and shell workflows.
+Agent-Sandbox is a self-hosted, lightweight, Kubernetes-native sandbox runtime for AI Agents — an open-source alternative to [Blaxel Sandbox](https://docs.blaxel.ai/Sandboxes/Overview) and [E2B](https://e2b.dev/), fully compatible with the E2B protocol and SDKs.
 
-The project is designed to be compatible with E2B protocol and SDK workflows while also exposing native REST API, MCP, and a web UI.
+One deployment covers every sandbox type an agent needs — code execution, browser use, computer/desktop use, and shell access — each isolated per-agent or per-user, with state that persists across sessions.
 
 ---
 
@@ -19,34 +18,33 @@ The project is designed to be compatible with E2B protocol and SDK workflows whi
 
 <div class="grid cards" markdown>
 
--   :material-clock-fast:{ .lg .middle } __Set up in 5 minutes__
+-   :material-clock-fast:{ .lg .middle } __Lightweight, easy to run__
 
     ---
 
-    Install [`Agent-Sandobx`](#) with [`kubectl apply`](#) and get up
-    and running in minutes
+    One component, one command. `kubectl apply -f install.yaml` and you're live in minutes — no etcd, no database, no CRDs. The Web UI ships in the same image.
 
     [:octicons-arrow-right-24: Getting started](quickstart)
 
--   :lucide-plug:{ .lg .middle } __Ai friendly__
+-   :lucide-plug:{ .lg .middle } __AI-native__
 
     ---
 
-    Supports Skills, Cli and MCP to empower your agents with sandbox capabilities
+    MCP server, E2B SDKs, and Skills let agents create, use, and tear down sandboxes on their own, no `kubectl` required.
 
     [:octicons-arrow-right-24: Reference](cli)
 
--   :lucide-mouse-pointer-click:{ .lg .middle } __Easy to use__
+-   :lucide-shield-check:{ .lg .middle } __Production-ready__
 
     ---
 
-    Designed with a simple **REST API**, **UI** and minimizing Kubernetes's objects to deploy for easy to use and maintain.
+    Multi-tenant isolation, a warm **Sandbox Pool**, **Pause/Resume**, **Snapshot**, scale-to-zero on idle, and leader election for HA.
 
 -   :lucide-package-open:{ .lg .middle } __Open and flexible__
 
     ---
-   
-    Supports E2B templates and any container image, and can be extended with **custom templates**.
+
+    **Blueprint** controls how a sandbox is deployed, **Template** controls what sandbox types exist, both live-editable from the UI, plus regex-matched dynamic templates.
 
 </div>
 
@@ -54,15 +52,17 @@ The project is designed to be compatible with E2B protocol and SDK workflows whi
 
 ## What it provides
 
-- **E2B protocol compatibility** for sandbox lifecycle APIs and routing.
-- **Sandbox lifecycle management**: create, list, connect, delete.
+- **Full E2B protocol & SDK compatibility** — a drop-in replacement for existing E2B-based agents and tools.
+- **Sandbox lifecycle management**: create, list, connect, pause/resume, delete.
 - **Multi-tenant access control** with system and regular users.
-- **Template and pool management** for fast sandbox allocation and warmup.
+- **Sandbox Pool** for pre-warmed, low-latency allocation, plus **Snapshot** and **scale-to-zero** on idle/timeout.
+- **Leader election** for high availability.
+- **Blueprint & Template configuration**, including regex-matched dynamic templates, editable live from the UI.
 - **Observability** with sandbox events, metrics, and logs.
 - **Interactive operations**: terminal, file upload/download, and sandbox routing.
 - **MCP server integration** for agent-native automation.
-- **Web UI** for sandbox/template/pool operations and runtime inspection.
+- **Built-in Web UI**, shipped in the same image, for sandbox/template/pool operations and runtime inspection.
 
 ## Quick start :octicons-heart-fill-24:{ .heart }
 
-See [Quick Start](quickstart.md) for a step-by-step guide covering deployment, creating a sandbox via E2B SDK, and using the REST API.
+See [Quick Start](quickstart.md) for a step-by-step guide covering deployment, creating a sandbox via the E2B SDK, and using the REST API.
