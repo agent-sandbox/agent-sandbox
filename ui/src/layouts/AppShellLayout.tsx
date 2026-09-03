@@ -23,7 +23,6 @@ export default function AppShellLayout() {
   const canViewSandboxBlueprintConfig = canAccessNav('sandboxBlueprintConfig', token)
   const canViewRuntimeConfig = canAccessNav('runtimeConfig', token)
   const canViewEvents = canAccessNav('events', token)
-  const canViewSandboxCommands = canAccessNav('sandboxCommands', token)
 
   const hasSandboxTools = canViewLogs || canViewTerminal || canViewFiles
   const hasSettings = canViewTemplatesConfig || canViewSandboxBlueprintConfig || canViewRuntimeConfig || canViewEvents
@@ -186,13 +185,6 @@ export default function AppShellLayout() {
                   <li>
                       <NavLink to="/events" className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
                           Events
-                      </NavLink>
-                  </li>
-                )}
-                {canViewSandboxCommands && (
-                  <li>
-                      <NavLink to="/sandbox-commands" className={({isActive}) => (isActive ? 'menu-active text-left' : 'text-left')}>
-                          Sandbox Commands
                       </NavLink>
                   </li>
                 )}

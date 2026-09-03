@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/agent-sandbox/agent-sandbox/pkg/activator"
-	"github.com/agent-sandbox/agent-sandbox/pkg/commandaudit"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
@@ -73,15 +72,6 @@ func (s *SandboxRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	q.Del("port")
 	r.URL.RawQuery = q.Encode()
-
-	upstreamPath := strings.TrimPrefix(r.URL.Path, prefixToStrip)
-	info := commandaudit.SandboxInfoFromContext(r.Context())
-	if info.SandboxName == "" {
-		info.SandboxName = name
-	}
-	if err := commandaudit.RecordProxyRequest(r, info, upstreamPath, port); err != nil {
-		klog.Warningf("failed to record sandbox command audit for %s: %v", name, err)
-	}
 
 	targetURL, err := AcquireDest(s.rootCtx, name, port)
 	if err != nil {

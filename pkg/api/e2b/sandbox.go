@@ -28,7 +28,6 @@ import (
 	"github.com/agent-sandbox/agent-sandbox/pkg/api/e2b/api"
 	"github.com/agent-sandbox/agent-sandbox/pkg/auth"
 	"github.com/agent-sandbox/agent-sandbox/pkg/capacity"
-	"github.com/agent-sandbox/agent-sandbox/pkg/commandaudit"
 	"github.com/agent-sandbox/agent-sandbox/pkg/sandbox"
 	"github.com/agent-sandbox/agent-sandbox/pkg/telemetry"
 	"github.com/agent-sandbox/agent-sandbox/pkg/utils"
@@ -349,11 +348,6 @@ func (a *Handler) SandboxRouterOfPath() http.HandlerFunc {
 			return
 		}
 		sbName := sb.Name
-		r = r.WithContext(commandaudit.ContextWithSandboxInfo(r.Context(), commandaudit.SandboxInfo{
-			TenantID:    sb.User,
-			SandboxID:   sb.ID,
-			SandboxName: sb.Name,
-		}))
 
 		if sb.Status == sandbox.Paused && sb.AutoResume {
 			err = a.controller.Resume(sb, "RequestOfPath")
@@ -421,11 +415,6 @@ func (a *Handler) SandboxRouterOfDomain() http.HandlerFunc {
 			return
 		}
 		sbName := sb.Name
-		r = r.WithContext(commandaudit.ContextWithSandboxInfo(r.Context(), commandaudit.SandboxInfo{
-			TenantID:    sb.User,
-			SandboxID:   sb.ID,
-			SandboxName: sb.Name,
-		}))
 
 		if sb.Status == sandbox.Paused && sb.AutoResume {
 			err = a.controller.Resume(sb, "Request")

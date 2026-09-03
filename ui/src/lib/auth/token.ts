@@ -14,9 +14,8 @@ export type NavKey =
   | 'sandboxBlueprintConfig'
   | 'runtimeConfig'
   | 'events'
-  | 'sandboxCommands'
 
-const DEFAULT_ALLOWED_NAVS: NavKey[] = ['dashboard', 'sandboxes', 'pool', 'rateLimit', 'metrics', 'controllerLogs', 'logs', 'terminal', 'files', 'events', 'sandboxCommands']
+const DEFAULT_ALLOWED_NAVS: NavKey[] = ['dashboard', 'sandboxes', 'pool', 'rateLimit', 'metrics', 'controllerLogs', 'logs', 'terminal', 'files', 'events']
 
 export function canAccessNav(key: NavKey, token = getAuthToken()): boolean {
   if (token.startsWith('sys-')) {

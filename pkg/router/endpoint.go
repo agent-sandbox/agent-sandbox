@@ -19,7 +19,6 @@ package router
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net/url"
 	"strconv"
 	"time"
@@ -32,7 +31,7 @@ import (
 )
 
 func AcquireDest(rootCtx context.Context, name string, port string) (*url.URL, error) {
-	selector, _ := labels.Parse(fmt.Sprintf("sandbox=" + name))
+	selector, _ := labels.Parse(fmt.Sprintf("sandbox=%s", name))
 
 	destIP := ""
 	var destPod *v1.Pod
@@ -40,7 +39,7 @@ func AcquireDest(rootCtx context.Context, name string, port string) (*url.URL, e
 	var err error
 
 	// Wait for pods to be ready avoid faster than rs creation and caching issue
-	if perr := wait.PollUntilContextTimeout(context.TODO(), 300*time.Millisecond, 5*time.Second, true, func(ctx context.Context) (bool, error) {
+	if perr := wait.PollUntilContextTimeout(context.TODO(), 300*time.Millisecond, 10*time.Second, true, func(ctx context.Context) (bool, error) {
 		pods, err = podclient.Get(rootCtx).Lister().Pods(config.Cfg.SandboxNamespace).List(selector)
 		if err != nil {
 			return false, err
@@ -49,8 +48,13 @@ func AcquireDest(rootCtx context.Context, name string, port string) (*url.URL, e
 			return false, fmt.Errorf("pod not found")
 		}
 
+		// pick the newest pod, stale informer cache may still hold deleted ones
+		destPod = newestPod(pods)
+		if destPod == nil {
+			return false, fmt.Errorf("no active pod found")
+		}
+
 		// wait for pod to be got ip
-		destPod = pods[rand.Intn(len(pods))]
 		destIP = destPod.Status.PodIP
 		if destIP == "" {
 			return false, fmt.Errorf("sandbox pod IP not found")
@@ -69,4 +73,33 @@ func AcquireDest(rootCtx context.Context, name string, port string) (*url.URL, e
 	targetURL, _ := url.Parse(fmt.Sprintf("http://%s:%s", destIP, port))
 
 	return targetURL, nil
+}
+
+func newestPod(pods []*v1.Pod) *v1.Pod {
+	newest := pods[0]
+	for _, pod := range pods[1:] {
+		if pod.CreationTimestamp.After(newest.CreationTimestamp.Time) ||
+			(pod.CreationTimestamp.Equal(&newest.CreationTimestamp) && pod.Name > newest.Name) {
+			newest = pod
+		}
+	}
+	if newest.DeletionTimestamp != nil {
+		return nil
+	}
+	if !isPodReady(newest) {
+		return nil
+	}
+	return newest
+}
+
+// isPodReady reports whether the pod's Ready condition is true, i.e. it has
+// passed its startup/readiness probes. A pod can have an IP long before its
+// containers are actually serving traffic, so IP alone isn't enough to trust it.
+func isPodReady(pod *v1.Pod) bool {
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == v1.PodReady {
+			return cond.Status == v1.ConditionTrue
+		}
+	}
+	return false
 }

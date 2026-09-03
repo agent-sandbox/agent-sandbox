@@ -14,7 +14,6 @@ import PoolListPage from '../pages/PoolListPage'
 import RateLimitPage from '../pages/RateLimitPage'
 import RuntimeConfigPage from '../pages/RuntimeConfigPage'
 import SandboxesPage from '../pages/SandboxesPage'
-import SandboxCommandsPage from '../pages/SandboxCommandsPage'
 import SandboxBlueprintConfigPage from '../pages/SandboxBlueprintConfigPage'
 import TemplatesConfigPage from '../pages/TemplatesConfigPage'
 import TerminalPage from '../pages/TerminalPage'
@@ -88,10 +87,6 @@ export const appRouter = createHashRouter([
           {
             path: 'events',
             element: <EventsPage />,
-          },
-          {
-            path: 'sandbox-commands',
-            element: <SandboxCommandsPage />,
           },
           {
             path: 'pool/:poolName',

@@ -84,9 +84,6 @@ func (s *Controller) listEnvdProcesses(sb *Sandbox) ([]e2bapi.ProcessInfo, error
 
 // encodeProcessSnapshot serializes the filtered process list and returns annotation-safe base64 JSON.
 func encodeProcessSnapshot(processes []e2bapi.ProcessInfo) (string, error) {
-	if len(processes) == 0 {
-		return "", fmt.Errorf("process list is empty")
-	}
 	payload := processSnapshotPayload{
 		CapturedTime: time.Now().UTC(),
 		Processes:    processes,
