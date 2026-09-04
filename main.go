@@ -69,33 +69,6 @@ func main() {
 		klog.Fatalf("Failed to initialize metrics client: %v", err)
 	}
 
-	// Watch the runtime ConfigMap on every replica (read-only). Leader writes
-	// the initial ConfigMap once it's elected (below); followers pick up the
-	// change via this watcher and apply it to their local config.Cfg.
-	cfg.KubeClient = kubeClient
-	configMapWatcher := configmapinformer.NewInformedWatcher(kubeClient, cfg.SandboxNamespace)
-	configMapWatcher.Watch(config.Cfg.ConfigmapName, config.WatchConfigMap())
-	if err := configMapWatcher.Start(rootCtx.Done()); err != nil {
-		klog.Fatal("Failed to start configuration manager", zap.Error(err))
-	}
-
-	// check k8s version is matched
-	// We sometimes start up faster than we can reach kube-api. Poll on failure to prevent us terminating
-	if perr := wait.PollUntilContextTimeout(rootCtx, time.Second, 60*time.Second, true, func(ctx context.Context) (bool, error) {
-		if err = version.CheckMinimumVersion(kubeClient.Discovery()); err != nil {
-			ctx.Done()
-			log.Print("Failed to get k8s version ", err)
-		}
-		return err == nil, nil
-	}); perr != nil {
-		log.Fatal("Timed out attempting to get k8s version: ", err)
-	}
-
-	if err := controller.StartInformers(rootCtx.Done(), informers...); err != nil {
-		log.Fatalln("Failed to start informers", zap.Error(err))
-	}
-	log.Printf("Starting informers %v", len(informers))
-
 	eventRecoder := activator.GetRecorder(rootCtx)
 	pl := sandbox.NewPoolManager(rootCtx)
 	a := activator.NewActivator(rootCtx, eventRecoder)
@@ -127,6 +100,33 @@ func main() {
 			}()
 		}
 	})
+
+	// Watch the runtime ConfigMap on every replica (read-only). Leader writes
+	// the initial ConfigMap once it's elected (below); followers pick up the
+	// change via this watcher and apply it to their local config.Cfg.
+	cfg.KubeClient = kubeClient
+	configMapWatcher := configmapinformer.NewInformedWatcher(kubeClient, cfg.SandboxNamespace)
+	configMapWatcher.Watch(config.Cfg.ConfigmapName, config.WatchConfigMap())
+	if err := configMapWatcher.Start(rootCtx.Done()); err != nil {
+		klog.Fatal("Failed to start configuration manager", zap.Error(err))
+	}
+
+	// check k8s version is matched
+	// We sometimes start up faster than we can reach kube-api. Poll on failure to prevent us terminating
+	if perr := wait.PollUntilContextTimeout(rootCtx, time.Second, 60*time.Second, true, func(ctx context.Context) (bool, error) {
+		if err = version.CheckMinimumVersion(kubeClient.Discovery()); err != nil {
+			ctx.Done()
+			log.Print("Failed to check k8s version ", err)
+		}
+		return err == nil, nil
+	}); perr != nil {
+		log.Fatal("Timed out attempting to get k8s version: ", err)
+	}
+
+	if err := controller.StartInformers(rootCtx.Done(), informers...); err != nil {
+		log.Fatalln("Failed to start informers", zap.Error(err))
+	}
+	log.Printf("Starting informers %v", len(informers))
 
 	// Init lifecycle-event telemetry. No-op when Telemetry.Enabled is false.
 	telemetry.Init(rootCtx, telemetry.Settings{
