@@ -10,3 +10,4 @@ COPY ./ui/dist /ui/dist
 RUN chmod +x /app
 
 CMD /app
+

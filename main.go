@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -29,7 +30,20 @@ import (
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
 )
 
+// banner is generated with `figlet -f "ANSI Shadow" "AGENT SANDBOX"`, not
+// hand-drawn, so the letterforms are guaranteed correct.
+const banner = `
+     _                    _           ____                  _ _
+    / \   __ _  ___ _ __ | |_        / ___|  __ _ _ __    __| | |__   _____  __
+   / _ \ / _' |/ _ \ '_ \| __| _____ \___ \ / _' | '_ \  / _' | '_ \ / _ \ \/ /
+  / ___ \ (_| | ___/ | | | |_  _____  ___) | (_| | | | || (_| | |_) | (_) >  <
+ /_/   \_\__, |\___|_| |_|\__|       |____/ \__,_|_| |_(_)__,_|_.__/ \___/_/\_\
+         |___/
+`
+
 func main() {
+	fmt.Println(banner)
+
 	rootCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -40,6 +54,7 @@ func main() {
 	var err error
 
 	klog.InitFlags(&fs)
+	klog.Infof("Starting agent-sandbox version:%s", config.Version)
 	klog.Infof("Loaded config %+v", config.Cfg)
 
 	// set log level
