@@ -135,7 +135,7 @@ func (a *Activator) renewActiveLease(name string, now time.Time) {
 	if err != nil {
 		a.rollbackActiveRecord(name, now)
 		klog.ErrorS(err, "Failed to renew active lease", "name", name)
-		tlog := telemetry.TLog{LogName: "sandbox.recordActive", Sbx: telemetry.SbxInfo{SandboxName: name}, Success: false, Message: err.Error()}
+		tlog := telemetry.TLog{EventName: telemetry.EventNameSandboxRecordActive, Sbx: telemetry.SbxInfo{SandboxName: name}, Success: false, Message: err.Error()}
 		telemetry.EmitTLog(tlog)
 	}
 

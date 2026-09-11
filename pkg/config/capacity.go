@@ -29,7 +29,7 @@ type UserRateLimitConfig struct {
 }
 
 type RateLimitConfig struct {
-	Enabled        bool `json:"enabled" split_words:"true" default:"true"`
+	Enabled        bool `json:"enabled" split_words:"true" default:"false"`
 	MaxConcurrency int  `json:"max_concurrency" split_words:"true" default:"10"`
 	MaxSandbox     int  `json:"max_sandbox" split_words:"true" default:"100"`
 }

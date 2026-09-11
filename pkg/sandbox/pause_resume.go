@@ -23,6 +23,7 @@ import (
 
 	"github.com/agent-sandbox/agent-sandbox/pkg/activator"
 	"github.com/agent-sandbox/agent-sandbox/pkg/config"
+	"github.com/agent-sandbox/agent-sandbox/pkg/telemetry"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,16 +37,20 @@ func (s *Controller) Pause(sb *Sandbox, reason string) error {
 		return nil
 	}
 
-	snapshot, err := s.captureProcessSnapshot(sb)
-	if err != nil {
-		s.EventPause(sb, reason, err)
-		return err
-	}
+	start := time.Now()
 
 	rsCopy := sb.ReplicaSet.DeepCopy()
 	annotations := rsCopy.GetAnnotations()
 	if annotations == nil {
 		annotations = map[string]string{}
+	}
+	lastSnapshot := annotations[AnnotationProcessSnapshot]
+
+	snapshot, err := s.captureProcessSnapshot(sb)
+	if err != nil {
+		s.EventPause(sb, reason, err)
+		s.tlogOp(sb, telemetry.EventNameSandboxPause, reason, "last snapshot:"+lastSnapshot, err, start)
+		return err
 	}
 
 	replicas := int32(0)
@@ -62,12 +67,35 @@ func (s *Controller) Pause(sb *Sandbox, reason string) error {
 
 	_, err = s.kclient.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Update(context.TODO(), rsCopy, v1meta.UpdateOptions{})
 	s.EventPause(sb, reason, err)
+	s.tlogOp(sb, telemetry.EventNameSandboxPause, reason, fmt.Sprintf("snapshot: %s, last snapshot:%s", snapshot, lastSnapshot), err, start)
 	return err
 }
 
+// tlogOp emits a TLog for a sandbox lifecycle operation (pause/resume/snapshot/...).
+// reason may be empty for operations that don't have one (e.g. snapshot).
+func (s *Controller) tlogOp(sb *Sandbox, eventName, reason string, msg string, err error, start time.Time) {
+	tlog := telemetry.TLog{
+		EventName: eventName,
+		Reason:    reason,
+		Success:   err == nil,
+		Duration:  time.Since(start).Seconds(),
+		Message:   msg,
+	}
+	if msg == "" {
+		tlog.Message = eventName + " " + reason
+	}
+	if err != nil {
+		tlog.Message = msg + " error:" + err.Error()
+	}
+	TLog(sb, tlog)
+}
+
 func (s *Controller) SandboxProcessSnapshot(sb *Sandbox) error {
+	start := time.Now()
+
 	snapshot, err := s.captureProcessSnapshot(sb)
 	if err != nil {
+		s.tlogOp(sb, telemetry.EventNameSandboxSnapshot, "", "", err, start)
 		return err
 	}
 
@@ -81,10 +109,13 @@ func (s *Controller) SandboxProcessSnapshot(sb *Sandbox) error {
 	rsCopy.SetAnnotations(annotations)
 
 	_, err = s.kclient.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Update(context.TODO(), rsCopy, v1meta.UpdateOptions{})
+	s.tlogOp(sb, telemetry.EventNameSandboxSnapshot, "", "snapshot:"+snapshot, err, start)
 	return err
 }
 
 func (s *Controller) DeleteProcessSnapshot(sb *Sandbox) error {
+	start := time.Now()
+
 	rsCopy := sb.ReplicaSet.DeepCopy()
 	annotations := rsCopy.GetAnnotations()
 	if annotations == nil {
@@ -95,6 +126,7 @@ func (s *Controller) DeleteProcessSnapshot(sb *Sandbox) error {
 	rsCopy.SetAnnotations(annotations)
 
 	_, err := s.kclient.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Update(context.TODO(), rsCopy, v1meta.UpdateOptions{})
+	s.tlogOp(sb, telemetry.EventNameSandboxSnapshotDelete, "", "", err, start)
 	return err
 }
 
@@ -104,6 +136,7 @@ func (s *Controller) Resume(sb *Sandbox, reason string) error {
 	}
 
 	klog.Infof("Resuming sandbox %s, reason %s", sb.Name, reason)
+	start := time.Now()
 
 	rsCopy := sb.ReplicaSet.DeepCopy()
 	annotations := rsCopy.GetAnnotations()
@@ -130,21 +163,25 @@ func (s *Controller) Resume(sb *Sandbox, reason string) error {
 		snapshot = ""
 	default:
 		s.EventResume(sb, reason, err)
+		s.tlogOp(sb, telemetry.EventNameSandboxResume, reason, "", err, start)
 		return err
 	}
 
 	if err := s.WaitForReplicaSetReady(sb); err != nil {
 		s.EventResume(sb, reason, err)
+		s.tlogOp(sb, telemetry.EventNameSandboxResume, reason, "", err, start)
 		return err
 	}
 	if snapshot != "" {
 		if err := s.restoreProcessSnapshot(sb, snapshot); err != nil {
 			s.EventResume(sb, reason, err)
+			s.tlogOp(sb, telemetry.EventNameSandboxResume, reason, "", err, start)
 			return err
 		}
 	}
 
 	s.EventResume(sb, reason, nil)
+	s.tlogOp(sb, telemetry.EventNameSandboxResume, reason, "snapshot:"+snapshot, nil, start)
 	return nil
 }
 

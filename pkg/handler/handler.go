@@ -130,6 +130,17 @@ func (ahh *ApiHttpHandler) regHandlers() {
 	ahh.mux.Handle("/ui/", http.StripPrefix("/ui/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		uiDistFS.ServeHTTP(w, r)
 	})))
+	// Redirect the bare "/ui" to "/ui/" via a relative Location header (not an
+	// absolute "/ui/"). Note: http.Redirect can't be used here — it rewrites a
+	// relative target into an absolute path using r.URL.Path, which is already
+	// prefix-stripped by any reverse proxy in front of this server, defeating the
+	// purpose. Setting the header directly keeps it truly relative, so the browser
+	// resolves it against the original request URL and any stripped proxy prefix
+	// (e.g. "/agent-sandbox/ui" -> "/ui" as seen here) is preserved.
+	ahh.mux.HandleFunc("/ui", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", "ui/")
+		w.WriteHeader(http.StatusMovedPermanently)
+	})
 
 	// e2b sandbox execute endpoint
 	ahh.mux.HandleFunc("/sandboxes/router/{sandboxID}/{port}/", e2bHeader.SandboxRouterOfPath())

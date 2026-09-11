@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 )
@@ -21,21 +23,21 @@ func WatchConfigMap() func(configMap *corev1.ConfigMap) {
 	return func(configMap *corev1.ConfigMap) {
 		templatesContent := configMap.Data[TemplatesConfigMapKey]
 		if templatesContent != "" && templatesContent != lastTemplatesContent {
-			klog.Info("watching ConfigMap changed, templates content updated, content=", templatesContent)
+			klog.Info("watching ConfigMap changed, templates content updated, content=", strings.ReplaceAll(templatesContent, "\n", " "))
 			Cfg.ShouldLoadTemplates(templatesContent)
 			lastTemplatesContent = templatesContent
 		}
 
 		sandboxBlueprintContent := configMap.Data[SandboxBlueprintConfigMapKey]
 		if sandboxBlueprintContent != "" && sandboxBlueprintContent != lastSandboxBlueprintContent {
-			klog.Info("watching ConfigMap changed, sandbox blueprint content updated, content=", sandboxBlueprintContent)
+			klog.Info("watching ConfigMap changed, sandbox blueprint content updated, content=", strings.ReplaceAll(sandboxBlueprintContent, "\n", " "))
 			SandboxBlueprint = sandboxBlueprintContent
 			lastSandboxBlueprintContent = sandboxBlueprintContent
 		}
 
 		runtimeConfigContent, ok := configMap.Data[RuntimeConfigMapKey]
 		if ok && runtimeConfigContent != "" && runtimeConfigContent != lastRuntimeConfigContent {
-			klog.Info("watching ConfigMap changed, runtime config updated, content=", runtimeConfigContent)
+			klog.Info("watching ConfigMap changed, runtime config updated, content=", strings.ReplaceAll(runtimeConfigContent, "\n", " "))
 			Cfg.ApplyRuntimeConfigContent(runtimeConfigContent)
 			lastRuntimeConfigContent = runtimeConfigContent
 		}
