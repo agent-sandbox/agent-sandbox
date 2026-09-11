@@ -31,7 +31,10 @@ import (
 )
 
 const (
-	serviceName = "agent-sandbox"
+	// ServiceName is the OTel Resource "service.name" attribute emitted with
+	// every TLog record. VictoriaLogs maps Resource attributes to stream
+	// fields by default, so this is the LogsQL _stream label to filter on.
+	ServiceName = "agent-sandbox"
 	loggerScope = "agent-sandbox/telemetry"
 )
 
@@ -69,7 +72,7 @@ func Init(ctx context.Context, cfg Settings, endpoint, urlPath string, insecure 
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
 			attribute.String("env", config.Cfg.EnvName),
-			attribute.String("service.name", serviceName),
+			attribute.String("service.name", ServiceName),
 			attribute.String("service.instance.id", instanceID()),
 		),
 	)

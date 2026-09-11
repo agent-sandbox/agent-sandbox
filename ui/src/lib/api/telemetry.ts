@@ -62,7 +62,7 @@ export type TelemetryLogsData = {
   items: TelemetryLogEntry[]
 }
 
-export type TelemetryLogEventFilter = '' | 'create' | 'delete'
+export type TelemetryLogEventFilter = '' | 'create' | 'delete' | 'pause' | 'resume' | 'snapshot' | 'snapshot_delete'
 
 export const TELEMETRY_TIME_RANGES = ['1h', '6h', '24h', '7d', '30d'] as const
 export type TelemetryTimeRange = (typeof TELEMETRY_TIME_RANGES)[number]

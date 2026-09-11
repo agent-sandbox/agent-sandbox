@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { canAccessNav, clearAuthToken, getAuthToken } from '../lib/auth/token'
+import { getAppBasePath } from '../lib/config/api'
 import { applyTheme, getAvailableThemes, getTheme, type ThemeName } from '../lib/theme/theme'
 
 export default function AppShellLayout() {
@@ -50,7 +51,7 @@ export default function AppShellLayout() {
 
     const loadVersion = async () => {
       try {
-        const response = await fetch('/healthz')
+        const response = await fetch(`${getAppBasePath()}/healthz`)
         if (!response.ok) {
           return
         }

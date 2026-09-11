@@ -529,10 +529,7 @@ func (a *Handler) GetTelemetryLogs(r *http.Request) (interface{}, error) {
 		return nil, err
 	}
 
-	event := q.Get("event")
-	if event != "" && event != "create" && event != "delete" {
-		return nil, fmt.Errorf("invalid event %q", event)
-	}
+	event := telemetry.EscapeLogsQL(q.Get("event"))
 
 	limit := defaultLogsLimit
 	if s := q.Get("limit"); s != "" {
@@ -548,20 +545,22 @@ func (a *Handler) GetTelemetryLogs(r *http.Request) (interface{}, error) {
 
 	userFilter := telemetry.EscapeLogsQL(q.Get("user_key"))
 
-	// Build the LogsQL filter. We restrict to known event names so the viewer
-	// never accidentally surfaces unrelated VictoriaLogs records.
-	var eventClause string
-	if event == "" {
-		eventClause = `(event_name:"sandbox.create" OR event_name:"sandbox.delete")`
-	} else {
-		eventClause = fmt.Sprintf(`event_name:"sandbox.%s"`, event)
+	// event is optional: an empty filter still restricts to this service's
+	// own records via the _stream index, so the viewer never surfaces
+	// unrelated records from other sources sharing this VictoriaLogs
+	// instance. service.name is an OTel Resource attribute (see
+	// pkg/telemetry/otel.go), which OTLP ingestion maps to a VictoriaLogs
+	// stream field by default — unlike event_name, a per-record attribute.
+	eventClause := fmt.Sprintf(`_stream:{"service.name"="%s"} `, telemetry.ServiceName)
+	if event != "" {
+		eventClause = fmt.Sprintf(`event_name:"sandbox.%s" `, event)
 	}
 	userClause := ""
 	if userFilter != "" {
-		userClause = fmt.Sprintf(` user_key:"%s"`, userFilter)
+		userClause = fmt.Sprintf(`user_key:"%s" `, userFilter)
 	}
 
-	logsql := fmt.Sprintf(`%s%s %s | sort by (_time desc) | limit %d`, eventClause, userClause, tw.Clause, limit)
+	logsql := fmt.Sprintf(`%s%s%s | sort by (_time desc) | limit %d`, eventClause, userClause, tw.Clause, limit)
 
 	client, err := newQueryClient()
 	if err != nil {

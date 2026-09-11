@@ -43,6 +43,18 @@ const (
 	ReasonUnknown             = "unknown"
 )
 
+// EventName values, one per TLog.EventName a call site may emit. Kept as
+// constants so call sites do not pass arbitrary strings.
+const (
+	EventNameSandboxCreate         = "sandbox.create"
+	EventNameSandboxDelete         = "sandbox.delete"
+	EventNameSandboxPause          = "sandbox.pause"
+	EventNameSandboxResume         = "sandbox.resume"
+	EventNameSandboxSnapshot       = "sandbox.snapshot"
+	EventNameSandboxSnapshotDelete = "sandbox.snapshot_delete"
+	EventNameSandboxRecordActive   = "sandbox.recordActive"
+)
+
 // SbxInfo describes the sandbox a TLog is about. Embedded in TLog so future
 // non-lifecycle events (pause / resume / exec / file ops) can attach the same
 // identity block.
@@ -64,7 +76,7 @@ type SbxInfo struct {
 // on create, sandbox lifetime on delete, etc.). Callers compute it.
 type TLog struct {
 	RequestID string
-	LogName   string
+	EventName string
 	Success   bool
 
 	Sbx SbxInfo
@@ -166,17 +178,17 @@ func drainTLog() {
 
 func emitTLogRecord(l log.Logger, tlog TLog) {
 	var rec log.Record
-	rec.SetEventName(tlog.LogName)
+	rec.SetEventName(tlog.EventName)
 	rec.SetTimestamp(time.Now())
 	rec.SetSeverity(log.SeverityInfo)
 	// Body maps to VictoriaLogs' _msg column.
 	if tlog.Message == "" {
-		tlog.Message = tlog.LogName
+		tlog.Message = tlog.EventName
 	}
 	rec.SetBody(log.StringValue(tlog.Message))
 	rec.AddAttributes(
 		log.String("request_id", tlog.RequestID),
-		log.String("event_name", tlog.LogName),
+		log.String("event_name", tlog.EventName),
 		log.Bool("success", tlog.Success),
 		log.String("user_key", tlog.Sbx.UserKey),
 		log.String("sandbox_id", tlog.Sbx.SandboxID),

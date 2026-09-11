@@ -722,15 +722,14 @@ export default function SandboxesPage() {
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Name</th>
-                    <th>Template</th>
-                    <th>Image</th>
+                    <th  style={{ width: '300px' }}>Name</th>
+                    <th  style={{ width: '300px' }}>Template</th>
                     <th>Status</th>
                     <th>CPU %</th>
                     <th>Memory %</th>
                     <th>Timeout</th>
                     <th>Created</th>
-                    <th className="text-center">Actions</th>
+                    <th className="text-center" style={{ width: '160px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -747,7 +746,7 @@ export default function SandboxesPage() {
                       const metrics = sandboxName ? metricsByName[sandboxName] : undefined
 
                       return (
-                        <tr key={sandboxName || sandbox.id || `sandbox-${index}`}>
+                        <tr key={sandboxName || sandbox.id || `sandbox-${index}`} className="hover:bg-base-300">
                           <td>{index + 1}</td>
                           <td className="font-medium">
                             <a className="link link-hover link-success" href={`/sandbox/${sandbox.name}/health`} target="_blank" rel="noreferrer">
@@ -765,7 +764,8 @@ export default function SandboxesPage() {
                                   return (
                                     <button
                                       key={key}
-                                      className={`badge badge-sm font-normal ${isActive ? 'badge-primary' : 'badge-ghost'}`}
+                                      style={{cursor:"pointer"}}
+                                      className={`badge badge-xs  font-normal ${isActive ? 'badge-primary' : 'badge-neutral'}`}
                                       type="button"
                                       title={isActive ? 'Clear filter' : `Show only ${key}=${value}`}
                                       onClick={() => {
@@ -780,8 +780,9 @@ export default function SandboxesPage() {
                               </div>
                             )}
                           </td>
-                          <td>{sandbox.template || '-'}</td>
-                          <td>{sandbox.image || '-'}</td>
+                          <td>{sandbox.template || '-'}
+                              <div className="text-xs text-base-content/40 ">{sandbox.image || '-'}</div>
+                          </td>
                           <td>
                             {sandbox.status ? (
                               <span className={`badge badge-sm ${sandbox.status === 'running' ? 'badge-success' : 'badge-warning'}`}>{sandbox.status}</span>
@@ -794,51 +795,47 @@ export default function SandboxesPage() {
                           <td>{typeof sandbox.timeout === 'number' ? `${sandbox.timeout}s` : '-'}</td>
                           <td>{formatCreatedAt(sandbox.created_at)}</td>
                           <td className="text-right">
-                            <div className="text-center justify-center">
-                              <div className="mb-2 ">
-                                <button
-                                  className="btn btn-xs btn-outline mr-2"
-                                  type="button"
-                                  disabled={!sandboxName || Boolean(deletingName)}
-                                  onClick={() => {
-                                    navigate(`/logs?sandbox=${encodeURIComponent(sandboxName)}`)
-                                  }}
-                                >
-                                  Logs
-                                </button>
-                                <button
-                                  className="btn btn-xs btn-outline"
-                                  type="button"
-                                  disabled={!sandboxName || Boolean(deletingName)}
-                                  onClick={() => {
-                                    navigate(`/files?sandbox=${encodeURIComponent(sandboxName)}`)
-                                  }}
-                                >
-                                  Files
-                                </button>
-                              </div>
-                              <div>
-                                <button
-                                  className="btn btn-xs btn-warning btn-outline mr-1"
-                                  type="button"
-                                  disabled={!sandboxName || Boolean(deletingName)}
-                                  onClick={() => {
-                                    navigate(`/terminal?sandbox=${encodeURIComponent(sandboxName)}`)
-                                  }}
-                                >
-                                  Terminal
-                                </button>
-                                <button
-                                  className={`btn btn-xs btn-outline btn-error ${isDeleting ? 'btn-disabled' : ''}`}
-                                  type="button"
-                                  disabled={isDeleteDisabled(sandboxName)}
-                                  onClick={() => {
-                                    handleDeleteClick(sandbox.name)
-                                  }}
-                                >
-                                  {isDeleting ? 'Deleting...' : 'Delete'}
-                                </button>
-                              </div>
+                            <div className="mx-auto flex w-40 flex-wrap items-center justify-center gap-1">
+                              <button
+                                className="btn btn-xs btn-outline"
+                                type="button"
+                                disabled={!sandboxName || Boolean(deletingName)}
+                                onClick={() => {
+                                  navigate(`/logs?sandbox=${encodeURIComponent(sandboxName)}`)
+                                }}
+                              >
+                                Logs
+                              </button>
+                              <button
+                                className="btn btn-xs btn-outline"
+                                type="button"
+                                disabled={!sandboxName || Boolean(deletingName)}
+                                onClick={() => {
+                                  navigate(`/files?sandbox=${encodeURIComponent(sandboxName)}`)
+                                }}
+                              >
+                                Files
+                              </button>
+                              <button
+                                className="btn btn-xs btn-warning btn-outline"
+                                type="button"
+                                disabled={!sandboxName || Boolean(deletingName)}
+                                onClick={() => {
+                                  navigate(`/terminal?sandbox=${encodeURIComponent(sandboxName)}`)
+                                }}
+                              >
+                                Terminal
+                              </button>
+                              <button
+                                className={`btn btn-xs btn-outline btn-error ${isDeleting ? 'btn-disabled' : ''}`}
+                                type="button"
+                                disabled={isDeleteDisabled(sandboxName)}
+                                onClick={() => {
+                                  handleDeleteClick(sandbox.name)
+                                }}
+                              >
+                                {isDeleting ? 'Deleting...' : 'Delete'}
+                              </button>
                             </div>
                           </td>
                         </tr>

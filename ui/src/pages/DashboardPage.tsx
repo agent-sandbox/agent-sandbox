@@ -172,6 +172,9 @@ export default function DashboardPage() {
                           <p className="text-sm text-base-content/70">Monitor sandbox count, capacity, API keys,
                               templates, and recent events.</p>
                       </div>
+                      <div  style={{justifyContent: 'end'}} className="text-xs">
+                          Current Leader: <span className="badge badge-sm  badge-info">{leader}</span>
+                      </div>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
                       <label className="label cursor-pointer gap-2 py-0">
@@ -225,9 +228,7 @@ export default function DashboardPage() {
                   </div>
               </section>
           )}
-          <div role="alert" className="alert " style={{justifyContent: 'end'}}>
-              Current Leader: <span className="badge  badge-info">{leader}</span>
-          </div>
+
           <section className="grid gap-3 xl:grid-cols-12">
               <div className="card border border-base-300 bg-base-100 shadow-sm xl:col-span-2">
                   <div className="card-body gap-4 py-4">
@@ -258,7 +259,7 @@ export default function DashboardPage() {
                               <span className="text-sm font-thin">(TOP-5)</span>
                           </div>
                       </div>
-                      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                      <div className="grid gap-3 md:grid-cols-5 xl:grid-cols-5">
                           {rateLimitStatus.users.length === 0 ? (
                               <div className="text-sm text-base-content/60">No per-key capacity data found.</div>
                           ) : (

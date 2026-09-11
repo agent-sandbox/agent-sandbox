@@ -21,8 +21,18 @@ function isRange(v: string | null): v is TelemetryTimeRange {
   return v !== null && (TELEMETRY_TIME_RANGES as readonly string[]).includes(v)
 }
 
+const EVENT_OPTIONS: { value: TelemetryLogEventFilter; label: string }[] = [
+  { value: '', label: 'All' },
+  { value: 'create', label: 'Create' },
+  { value: 'delete', label: 'Delete' },
+  { value: 'pause', label: 'Pause' },
+  { value: 'resume', label: 'Resume' },
+  { value: 'snapshot', label: 'Snapshot' },
+  { value: 'snapshot_delete', label: 'Snapshot Delete' },
+]
+
 function isEvent(v: string | null): v is TelemetryLogEventFilter {
-  return v === '' || v === 'create' || v === 'delete' || v === null
+  return v === null || EVENT_OPTIONS.some((o) => o.value === v)
 }
 
 function isLimit(v: string | null): number | null {
@@ -186,17 +196,18 @@ export default function ControllerLogsPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm">Type:</span>
-            <div className="join">
-              {(['', 'create', 'delete'] as const).map((e) => (
-                <button
-                  key={e || 'all'}
-                  className={`join-item btn btn-sm ${event === e ? 'btn-primary' : ''}`}
-                  onClick={() => setFilters({ event: e })}
-                >
-                  {e === '' ? 'All' : e === 'create' ? 'Create' : 'Delete'}
-                </button>
+            <select
+                style={{width: "150px"}}
+              className="select select-sm select-bordered"
+              value={event}
+              onChange={(e) => setFilters({ event: e.target.value as TelemetryLogEventFilter })}
+            >
+              {EVENT_OPTIONS.map(({ value, label }) => (
+                <option key={value || 'all'} value={value}>
+                  {label}
+                </option>
               ))}
-            </div>
+            </select>
 
             <span className="text-sm">UserKey:</span>
             <div className="join">
@@ -299,8 +310,7 @@ export default function ControllerLogsPage() {
                 <table className="table table-sm">
                   <thead>
                     <tr>
-                      <th>Time</th>
-                      <th>Sandbox ID / User / Status</th>
+                      <th>Time / Sandbox ID / User / Status</th>
                       <th>Content</th>
                     </tr>
                   </thead>
@@ -343,12 +353,12 @@ function LogRow({ entry }: { entry: TelemetryLogEntry }) {
   const content = buildContent(entry)
   return (
     <tr>
-      <td className="whitespace-nowrap font-mono text-xs">{formatLogTime(entry['_time'])}</td>
-        <td className="truncate" >
-            {String(entry['sandbox_id'] ?? '-')} <br/>
+        <td className="truncate"  style={{verticalAlign: "top"}}>
+            <div className="whitespace-nowrap font-mono text-xs">{formatLogTime(entry['_time'])}</div>
+            <div className="text-base-content/50">{String(entry['sandbox_id'] ?? '-')} </div>
             <span className="text-sm text-base-content/50">{String(entry['user_key'] ?? '-')}</span>
             <br/>
-            <div className={`badge badge-soft  badge-sm ${entry['success'] === 'true' ? 'badge-info' : 'badge-warning'}`} >{String(entry['success'] ?? '-')}</div>
+            <div className={`badge badge-soft  badge-xs ${entry['success'] === 'true' ? 'badge-info' : 'badge-warning'}`} >{String(entry['success'] ?? '-')}</div>
         </td>
         <td className="font-mono text-xs text-base-content/80 break-all">
         {content}

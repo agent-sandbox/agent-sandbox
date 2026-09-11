@@ -223,7 +223,7 @@ func (s *Controller) Create(sb *Sandbox) (*Sandbox, error) {
 
 	start := time.Now()
 	defer func() {
-		tlog := telemetry.TLog{LogName: "sandbox.create", Message: sb.ToString()}
+		tlog := telemetry.TLog{EventName: telemetry.EventNameSandboxCreate, Message: sb.ToString()}
 		tlog.Success = true
 		if err != nil {
 			tlog.Success = false
@@ -329,10 +329,10 @@ func (s *Controller) tlogDelete(rs *v1.ReplicaSet, reason string, err error) {
 	}
 
 	tlog := telemetry.TLog{
-		LogName: "sandbox.delete",
-		Reason:  reason,
-		Success: err == nil,
-		Message: "sandbox.delete " + reason,
+		EventName: telemetry.EventNameSandboxDelete,
+		Reason:    reason,
+		Success:   err == nil,
+		Message:   "sandbox.delete " + reason,
 	}
 
 	// For deletes, Duration carries the sandbox's lifetime in seconds.
