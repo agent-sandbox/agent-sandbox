@@ -65,7 +65,9 @@ func TestSandboxToStringRedactsSecrets(t *testing.T) {
 	sb.User = "user-0123456789abcdef"
 	sb.EnvVars = map[string]string{"OPENAI_API_KEY": "sk-secret"}
 
-	got := sb.ToString()
+	got := sb.String()
+
+	t.Logf("Sandbox ToString output: %s", got)
 
 	if strings.Contains(got, sb.User) || strings.Contains(got, "sk-secret") {
 		t.Errorf("ToString contains a secret: %s", got)

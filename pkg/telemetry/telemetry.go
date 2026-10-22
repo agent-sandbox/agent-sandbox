@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/agent-sandbox/agent-sandbox/pkg/config"
 	"go.opentelemetry.io/otel/log"
 )
 
@@ -100,7 +101,7 @@ func EmitTLog(tlog TLog) {
 	if !sample(rate) {
 		return
 	}
-	tlog.Sbx.UserKey = maskUser(tlog.Sbx.UserKey)
+	tlog.Sbx.UserKey = config.MaskUserKey(tlog.Sbx.UserKey)
 	select {
 	case c <- tlog:
 	default:
@@ -203,20 +204,6 @@ func emitTLogRecord(l log.Logger, tlog TLog) {
 		log.Int("schema_version", SchemaVersion),
 	)
 	l.Emit(context.Background(), rec)
-}
-
-// maskUser keeps the leading 2/3 of the user key. This preserves enough prefix
-// for grouping in dashboards while dropping the trailing identifying suffix
-// (e.g. "testuser-aef134ef-..." → "testuser-aef134ef-7aa1-9").
-func maskUser(user string) string {
-	if user == "" {
-		return ""
-	}
-	n := len(user) * 2 / 3
-	if n < 1 {
-		return user
-	}
-	return user[:n]
 }
 
 func sample(rate float64) bool {

@@ -21,11 +21,11 @@ import "fmt"
 // Redacted replaces secret values in logs and other %v output.
 const Redacted = "[REDACTED]"
 
-// MaskUserKey keeps the leading 2/3 of a user key (matches pkg/telemetry's
+// MaskUserKey keeps the leading 1/2 of a user key (matches pkg/telemetry's
 // maskUser). User keys are API keys, so anything logged or exposed publicly
 // goes through this instead of the raw value.
 func MaskUserKey(s string) string {
-	n := len(s) * 2 / 3
+	n := len(s) * 1 / 2
 	if n < 1 {
 		return s
 	}
@@ -63,7 +63,7 @@ func (c *Config) String() string {
 		"RateLimit:%+v RateLimitUsers:%d Telemetry:%+v SandboxNamespace:%s SandboxBlueprintFile:%s "+
 		"SandboxTemplatesConfigFile:%s SandboxDefaultImage:%s SandboxDefaultTemplate:%s ConfigmapName:%s "+
 		"EnvName:%s LogLevel:%s ExperimentTokens:%s PauseResume:%v PoolEnable:%v}",
-		c.LeaderName, c.APIVersion, c.APIBaseURL, c.ServerAddr, redactIfSet(c.SystemToken), len(c.APITokens),
+		c.LeaderName, c.APIVersion, c.APIBaseURL, c.ServerAddr, redactIfSet(c.SystemToken), len(c.GetAPITokens()),
 		c.RateLimit, len(c.RateLimitUsers), c.Telemetry, c.SandboxNamespace, c.SandboxBlueprintFile,
 		c.SandboxTemplatesConfigFile, c.SandboxDefaultImage, c.SandboxDefaultTemplate, c.ConfigmapName,
 		c.EnvName, c.LogLevel, redactIfSet(c.ExperimentTokens), c.PauseResume, c.PoolEnable)

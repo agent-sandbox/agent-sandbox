@@ -223,11 +223,11 @@ func (s *Controller) Create(sb *Sandbox) (*Sandbox, error) {
 
 	start := time.Now()
 	defer func() {
-		tlog := telemetry.TLog{EventName: telemetry.EventNameSandboxCreate, Message: sb.ToString()}
+		tlog := telemetry.TLog{EventName: telemetry.EventNameSandboxCreate, Message: sb.String()}
 		tlog.Success = true
 		if err != nil {
 			tlog.Success = false
-			tlog.Message = fmt.Sprintf("sandbox: %s, error: %v", sb.ToString(), err)
+			tlog.Message = fmt.Sprintf("sandbox: %s, error: %v", sb.String(), err)
 		}
 		tlog.Duration = time.Since(start).Seconds()
 		TLog(sb, tlog)

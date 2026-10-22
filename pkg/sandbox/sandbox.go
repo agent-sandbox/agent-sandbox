@@ -17,7 +17,6 @@
 package sandbox
 
 import (
-	"encoding/json"
 	"fmt"
 	"maps"
 	"strings"
@@ -221,14 +220,6 @@ func validAndRestValueOfSandbox(sb *Sandbox) error {
 	}
 
 	return nil
-}
-
-func (sb *Sandbox) ToString() string {
-	sbTmp := *sb
-	sbTmp.User = MaskUserKey(sbTmp.User)
-	sbTmp.EnvVars = config.RedactEnvVars(sbTmp.EnvVars)
-	sbStr, _ := json.Marshal(sbTmp)
-	return string(sbStr)
 }
 
 func (sb *Sandbox) Make() error {

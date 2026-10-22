@@ -37,13 +37,17 @@ func CheckFeature(feature bool, user string) bool {
 		return false
 	}
 
-	tokens := strings.Split(Cfg.ExperimentTokens, ",")
-	if len(tokens) > 0 {
-		r := slices.Contains(tokens, user)
-		klog.Infof("ExperimentTokens: %d configured, user: %s, enabled: %v", len(tokens), MaskUserKey(user), r)
-		return r
+	if strings.TrimSpace(Cfg.ExperimentTokens) == "" {
+		klog.Infof("ExperimentTokens is empty, enabling all features for all user, %s", MaskUserKey(user))
+		return true
 	}
 
-	klog.Infof("ExperimentTokens is empty, enabling all features for user %s", MaskUserKey(user))
-	return true
+	tokens := strings.Split(Cfg.ExperimentTokens, ",")
+	if slices.Contains(tokens, user) {
+		klog.Infof("ExperimentTokens: %d configured, user: %s passed", len(tokens), MaskUserKey(user))
+		return true
+	}
+
+	klog.Infof("ExperimentTokens: %d configured, user: %s unpassed", len(tokens), MaskUserKey(user))
+	return false
 }

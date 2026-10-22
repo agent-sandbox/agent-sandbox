@@ -91,4 +91,10 @@ V0.8.5 - 2026-10-20
 - Fix: missing authentication on the MCP API; MCP operations now use the real caller identity.
 - Improve: upgrade jupyter-server in the sandbox-base-code template to 2.21.0.
 --------------------------
+V0.8.6 - 2026-10-22
+- Fix: API keys and other secrets leaking into logs. Credential headers in the request log (Authorization, Cookie, X-Api-Key, X-Access-Token, etc.), the `api_key` URL parameter, the startup config, the ConfigMap runtime config, sandbox env vars and process snapshots are no longer logged in plain text, #15.
+- Fix: experiment features were disabled for all users when `ExperimentTokens` was empty; an empty value now enables them for all users.
+- Improve: user keys are now masked to the leading 1/2 instead of 2/3 in logs and endpoints such as `/api/v1/status`.
+- Change: the sandbox-create telemetry log message is now plain text instead of JSON, with env vars and process snapshots redacted.
+--------------------------
 
