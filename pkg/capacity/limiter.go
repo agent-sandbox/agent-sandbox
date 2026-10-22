@@ -165,9 +165,9 @@ func (rl *RateLimiter) AcquireCreate(user string) (func(), error) {
 
 	exceeded, maxSandbox, currentCount, err := rl.CheckCapacity(user)
 	if err != nil {
-		klog.Warningf("Failed to check capacity for user=%s: %v, allowing request", user, err)
+		klog.Warningf("Failed to check capacity for user=%s: %v, allowing request", config.MaskUserKey(user), err)
 	} else if exceeded {
-		klog.Warningf("Capacity exceeded for user=%s: current=%d, max=%d", user, currentCount, maxSandbox)
+		klog.Warningf("Capacity exceeded for user=%s: current=%d, max=%d", config.MaskUserKey(user), currentCount, maxSandbox)
 		return nil, &LimitError{
 			Code:    http.StatusRequestEntityTooLarge,
 			Message: fmt.Sprintf("capacity exceeded: you have reached the maximum sandbox limit (%d/%d), please delete some sandboxes before creating new ones", currentCount, maxSandbox),
@@ -176,11 +176,11 @@ func (rl *RateLimiter) AcquireCreate(user string) (func(), error) {
 
 	acquired, maxConcurrency, currentCount, err := rl.TryAcquire(user)
 	if err != nil {
-		klog.Warningf("Rate limit check failed for user=%s: %v, allowing request", user, err)
+		klog.Warningf("Rate limit check failed for user=%s: %v, allowing request", config.MaskUserKey(user), err)
 		return nil, nil
 	}
 	if !acquired {
-		klog.Warningf("Rate limit exceeded for user=%s: current=%d, max=%d", user, currentCount, maxConcurrency)
+		klog.Warningf("Rate limit exceeded for user=%s: current=%d, max=%d", config.MaskUserKey(user), currentCount, maxConcurrency)
 		return nil, &LimitError{
 			Code:    http.StatusTooManyRequests,
 			Message: fmt.Sprintf("rate limit exceeded: too many concurrent sandbox creation requests (%d/%d), please retry later", currentCount, maxConcurrency),

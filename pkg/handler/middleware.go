@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -28,6 +29,52 @@ import (
 	"github.com/agent-sandbox/agent-sandbox/pkg/config"
 	"k8s.io/klog/v2"
 )
+
+// credentialHeaders carry secrets and are never written to the request log.
+var credentialHeaders = []string{
+	"Authorization",
+	"Proxy-Authorization",
+	"Cookie",
+	"Set-Cookie",
+	"X-Api-Key",
+	"X-Access-Token",
+}
+
+// redactHeaders returns a copy of h for logging, with credential values replaced.
+// The original header is not modified.
+func redactHeaders(h http.Header) http.Header {
+	out := h.Clone()
+	for _, name := range credentialHeaders {
+		if _, ok := out[name]; ok {
+			out[name] = []string{config.Redacted}
+		}
+	}
+	return out
+}
+
+// credentialQueryParams carry secrets in the URL and are never written to the request log.
+// The UI terminal WebSocket sends api_key this way because browsers can't set WS headers.
+var credentialQueryParams = []string{"api_key"}
+
+// redactURL returns u as a string for logging, with credential query values replaced.
+// The original URL is not modified.
+func redactURL(u *url.URL) string {
+	q := u.Query()
+	redacted := false
+	for _, name := range credentialQueryParams {
+		if q.Has(name) {
+			q.Set(name, config.Redacted)
+			redacted = true
+		}
+	}
+	if !redacted {
+		return u.String()
+	}
+	out := *u
+	// keep the marker readable instead of %5BREDACTED%5D
+	out.RawQuery = strings.ReplaceAll(q.Encode(), url.QueryEscape(config.Redacted), config.Redacted)
+	return out.String()
+}
 
 // LoggingMiddleware logs the request details and execution time
 func LoggingMiddleware(next http.Handler) http.Handler {
@@ -44,11 +91,11 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 			scheme = "https"
 		}
 
-		klog.V(1).Infof("Started request: %s %s:%s%s, request headers %v", r.Method, scheme, r.Host, r.URL, r.Header)
+		klog.V(1).Infof("Started request: %s %s:%s%s, request headers %v", r.Method, scheme, r.Host, redactURL(r.URL), redactHeaders(r.Header))
 
 		next.ServeHTTP(w, r)
 
-		klog.V(1).Infof("Finished request: %s %s://%s%s, Time taken: %v, response header: %v", r.Method, scheme, r.Host, r.URL, time.Since(start), w.Header())
+		klog.V(1).Infof("Finished request: %s %s://%s%s, Time taken: %v, response header: %v", r.Method, scheme, r.Host, redactURL(r.URL), time.Since(start), redactHeaders(w.Header()))
 	})
 }
 

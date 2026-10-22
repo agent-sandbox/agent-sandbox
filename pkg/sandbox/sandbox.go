@@ -19,6 +19,7 @@ package sandbox
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -143,6 +144,25 @@ const (
 	PoolLabel = "sbx-pool" // "true" indicates this is a pool replicaset
 )
 
+// String keeps the user's API key and env var values out of %v output, e.g. the
+// "Create sandbox opts" logs. The ReplicaSet is left out: its sandbox-data
+// annotation and container env hold the same values unredacted.
+func (sb *Sandbox) String() string {
+	if sb == nil {
+		return "<nil>"
+	}
+	type plain Sandbox // no String method, so Sprintf below doesn't recurse
+	cp := plain(*sb)
+	cp.ReplicaSet = nil
+	cp.User = MaskUserKey(cp.User)
+	cp.EnvVars = config.RedactEnvVars(cp.EnvVars)
+	if _, ok := cp.Metadata["snapshot"]; ok { // process snapshot, includes process env
+		cp.Metadata = maps.Clone(cp.Metadata)
+		cp.Metadata["snapshot"] = config.Redacted
+	}
+	return fmt.Sprintf("%+v", cp)
+}
+
 // Sandbox values process: GetDefaultSandbox->request overwrite->Make->setDefaultValueOfSandbox
 
 func GetDefaultSandbox() *Sandbox {
@@ -206,6 +226,7 @@ func validAndRestValueOfSandbox(sb *Sandbox) error {
 func (sb *Sandbox) ToString() string {
 	sbTmp := *sb
 	sbTmp.User = MaskUserKey(sbTmp.User)
+	sbTmp.EnvVars = config.RedactEnvVars(sbTmp.EnvVars)
 	sbStr, _ := json.Marshal(sbTmp)
 	return string(sbStr)
 }
@@ -332,13 +353,9 @@ type SandboxKube struct {
 	Namespace string
 }
 
-// MaskUserKey keeps the leading 2/3 of a user key (matches pkg/telemetry's
-// maskUser). Public endpoints use this so anonymous callers can't read the
-// full identity even when per-user counters are exposed.
+// MaskUserKey keeps the leading 2/3 of a user key. Public endpoints use this
+// so anonymous callers can't read the full identity even when per-user
+// counters are exposed.
 func MaskUserKey(s string) string {
-	n := len(s) * 2 / 3
-	if n < 1 {
-		return s
-	}
-	return s[:n]
+	return config.MaskUserKey(s)
 }

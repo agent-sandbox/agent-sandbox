@@ -892,7 +892,7 @@ func (s *Controller) CountSandboxes(user string) (int, error) {
 		if user == "" {
 			return 0, fmt.Errorf("failed to list replicasets: %w", err)
 		}
-		return 0, fmt.Errorf("failed to list replicasets for user %s: %w", user, err)
+		return 0, fmt.Errorf("failed to list replicasets for user %s: %w", MaskUserKey(user), err)
 	}
 	return len(rsList), nil
 }
@@ -912,7 +912,7 @@ func (s *Controller) CountByUserInCreate(user string) (int, error) {
 	}.AsSelector()
 	rsList, err := rsclient.Get(s.rootCtx).Lister().List(selector)
 	if err != nil {
-		return 0, fmt.Errorf("failed to list replicasets for user %s: %w", user, err)
+		return 0, fmt.Errorf("failed to list replicasets for user %s: %w", MaskUserKey(user), err)
 	}
 	n := 0
 	for _, rs := range rsList {

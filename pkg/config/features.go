@@ -40,10 +40,10 @@ func CheckFeature(feature bool, user string) bool {
 	tokens := strings.Split(Cfg.ExperimentTokens, ",")
 	if len(tokens) > 0 {
 		r := slices.Contains(tokens, user)
-		klog.Infof("ExperimentTokens: %v, user: %v", tokens, user)
+		klog.Infof("ExperimentTokens: %d configured, user: %s, enabled: %v", len(tokens), MaskUserKey(user), r)
 		return r
 	}
 
-	klog.Infof("ExperimentTokens is empty, enabling all features for user %s", user)
+	klog.Infof("ExperimentTokens is empty, enabling all features for user %s", MaskUserKey(user))
 	return true
 }

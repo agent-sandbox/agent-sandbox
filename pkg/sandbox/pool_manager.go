@@ -393,7 +393,7 @@ func (pm *PoolManager) createSingleReplicaSet(sb *Sandbox) (*v1.ReplicaSet, erro
 	createdRS, err := pm.client.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Create(context.TODO(), rs, v1meta.CreateOptions{})
 	createDuration := time.Since(createStart)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create pool replicaset in kubernetes replicaset: %+v error: %+v", rs, err)
+		return nil, fmt.Errorf("failed to create pool replicaset %s in kubernetes, error: %+v", rs.Name, err)
 	}
 
 	klog.V(2).Infof("created pool replicaset for sandbox %v, duration=%v", sb.Name, createDuration)

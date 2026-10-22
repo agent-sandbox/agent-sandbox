@@ -74,11 +74,11 @@ func (c *UserRateLimitConfig) Validate() bool {
 		return false
 	}
 	if c.MaxConcurrency < 0 {
-		klog.Warningf("UserRateLimitConfig.MaxConcurrency negative for user=%s, will use default", c.User)
+		klog.Warningf("UserRateLimitConfig.MaxConcurrency negative for user=%s, will use default", MaskUserKey(c.User))
 		c.MaxConcurrency = 0
 	}
 	if c.MaxSandbox < 0 {
-		klog.Warningf("UserRateLimitConfig.MaxSandbox negative for user=%s, will use default", c.User)
+		klog.Warningf("UserRateLimitConfig.MaxSandbox negative for user=%s, will use default", MaskUserKey(c.User))
 		c.MaxSandbox = 0
 	}
 	return true

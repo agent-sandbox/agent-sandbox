@@ -37,7 +37,8 @@ func WatchConfigMap() func(configMap *corev1.ConfigMap) {
 
 		runtimeConfigContent, ok := configMap.Data[RuntimeConfigMapKey]
 		if ok && runtimeConfigContent != "" && runtimeConfigContent != lastRuntimeConfigContent {
-			klog.Info("watching ConfigMap changed, runtime config updated, content=", strings.ReplaceAll(runtimeConfigContent, "\n", " "))
+			// the content holds system_token and api_tokens_raw, so it is never logged
+			klog.Info("watching ConfigMap changed, runtime config updated")
 			Cfg.ApplyRuntimeConfigContent(runtimeConfigContent)
 			lastRuntimeConfigContent = runtimeConfigContent
 		}
