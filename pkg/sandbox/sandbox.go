@@ -52,7 +52,39 @@ const (
 	AnnotationResumedAt       = "agent-sandbox.github.io/resumed-at"
 	AnnotationResumeReason    = "agent-sandbox.github.io/resume-reason"
 	AnnotationProcessSnapshot = "agent-sandbox.github.io/process-snapshot"
+	// AnnotationResumeStatus holds the JSON ResumeStatus of the latest resume; cleared on pause.
+	AnnotationResumeStatus = "agent-sandbox.github.io/resume-status"
 )
+
+// Metadata keys filled from ReplicaSet annotations when a sandbox is read; they are not persisted.
+const (
+	MetadataSnapshot     = "snapshot"
+	MetadataResumeStatus = "resumeStatus" // JSON ResumeStatus of the latest resume
+	MetadataResumedAt    = "resumedAt"
+	MetadataResumeReason = "resumeReason"
+)
+
+// RefreshRuntimeMetadata copies snapshot and resume annotations of sb.ReplicaSet into sb.Metadata.
+// Keys without an annotation are left alone, so metadata the user set under the same name survives.
+func (sb *Sandbox) RefreshRuntimeMetadata() {
+	if sb.Metadata == nil {
+		sb.Metadata = map[string]string{}
+	}
+	var annotations map[string]string
+	if sb.ReplicaSet != nil {
+		annotations = sb.ReplicaSet.Annotations
+	}
+	for key, annotation := range map[string]string{
+		MetadataSnapshot:     AnnotationProcessSnapshot,
+		MetadataResumeStatus: AnnotationResumeStatus,
+		MetadataResumedAt:    AnnotationResumedAt,
+		MetadataResumeReason: AnnotationResumeReason,
+	} {
+		if v := annotations[annotation]; v != "" {
+			sb.Metadata[key] = v
+		}
+	}
+}
 
 type SandboxBase struct {
 
@@ -143,8 +175,8 @@ const (
 	PoolLabel = "sbx-pool" // "true" indicates this is a pool replicaset
 )
 
-// String keeps the user's API key and env var values out of %v output, e.g. the
-// "Create sandbox opts" logs. The ReplicaSet is left out: its sandbox-data
+// String for logs, keeps the user's API key and env var values out of %v output,
+//e.g. the "Create sandbox opts" logs. The ReplicaSet is left out: its sandbox-data
 // annotation and container env hold the same values unredacted.
 func (sb *Sandbox) String() string {
 	if sb == nil {

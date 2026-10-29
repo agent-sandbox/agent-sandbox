@@ -25,14 +25,26 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	e2bapi "github.com/agent-sandbox/agent-sandbox/pkg/api/e2b/api"
 	"github.com/agent-sandbox/agent-sandbox/pkg/router"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 )
 
-const defaultEnvdPort = "49983"
+const (
+	defaultEnvdPort = "49983"
+
+	// envd may start after the pod is Ready: the startupProbe checks the template port,
+	// and fast-startup templates have no probe at all. Restore retries its first envd call
+	// until envd answers or envdReadyTimeout elapses.
+	envdReadyTimeout   = 30 * time.Second
+	envdRetryInterval  = 500 * time.Millisecond
+	envdRequestTimeout = 5 * time.Second
+)
 
 type processSnapshotPayload struct {
 	CapturedTime time.Time            `json:"captured_time"`
@@ -49,6 +61,7 @@ func (s *Controller) captureProcessSnapshot(sb *Sandbox) (string, error) {
 }
 
 // listEnvdProcesses calls envd's process.Process/List endpoint for the running sandbox.
+// TODO filter background process by special Env ,e.g.: sbx.commands.run("python server.py", background=True, envs={"SBX_BACKGROUND": "1"})
 func (s *Controller) listEnvdProcesses(sb *Sandbox) ([]e2bapi.ProcessInfo, error) {
 	payload, err := json.Marshal(e2bapi.ListRequest{})
 	if err != nil {
@@ -58,12 +71,17 @@ func (s *Controller) listEnvdProcesses(sb *Sandbox) ([]e2bapi.ProcessInfo, error
 	if err != nil {
 		return nil, err
 	}
-	url := dest.JoinPath("/process.Process/List").String()
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
+	return listEnvdProcessesAt(dest, sb.ID, payload)
+}
+
+func listEnvdProcessesAt(dest *url.URL, token string, payload []byte) ([]e2bapi.ProcessInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), envdRequestTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, dest.JoinPath("/process.Process/List").String(), bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("X-Access-Token", sb.ID)
+	req.Header.Set("X-Access-Token", token)
 	req.Header.Set("Connect-Protocol-Version", "1")
 	req.Header.Set("Content-Type", "application/json")
 
@@ -107,25 +125,115 @@ func decodeProcessSnapshot(snapshot string) (*processSnapshotPayload, error) {
 	return &payload, nil
 }
 
-func (s *Controller) restoreProcessSnapshot(sb *Sandbox, snapshot string) error {
+// restoreResult summarizes a snapshot restore for logs, events and telemetry.
+type restoreResult struct {
+	Total   int
+	Started int
+	Skipped int
+}
+
+func (r restoreResult) String() string {
+	return fmt.Sprintf("total=%d started=%d skipped(already running)=%d", r.Total, r.Started, r.Skipped)
+}
+
+// restoreProcessSnapshot waits for envd to answer, then starts every snapshotted process
+// that is not already running, so a repeated restore does not start duplicates.
+func (s *Controller) restoreProcessSnapshot(sb *Sandbox, snapshot string) (restoreResult, error) {
+	var result restoreResult
 	if snapshot == "" {
-		return nil
+		return result, nil
 	}
 	payload, err := decodeProcessSnapshot(snapshot)
 	if err != nil {
-		return err
+		return result, fmt.Errorf("decode process snapshot: %w", err)
 	}
+	result.Total = len(payload.Processes)
+	if result.Total == 0 {
+		klog.Infof("Process snapshot of sandbox %s is empty, nothing to restore", sb.Name)
+		return result, nil
+	}
+
 	dest, err := router.AcquireDest(s.rootCtx, sb.Name, defaultEnvdPort)
 	if err != nil {
-		return err
+		return result, fmt.Errorf("acquire envd address: %w", err)
 	}
-	processStartURL := dest.JoinPath("/process.Process/Start").String()
-	for _, process := range payload.Processes {
-		if err := s.startEnvdProcess(sb.ID, processStartURL, process); err != nil {
-			return err
+	readyStart := time.Now()
+	running, err := waitEnvdAndListProcesses(dest, sb.ID)
+	if err != nil {
+		return result, err
+	}
+	klog.Infof("envd of sandbox %s answered after %v, %d processes running, restoring %d", sb.Name, time.Since(readyStart), len(running), result.Total)
+	runningKeys := map[string]bool{}
+	for _, p := range running {
+		for _, k := range processKeys(p) {
+			runningKeys[k] = true
 		}
 	}
-	return nil
+
+	processStartURL := dest.JoinPath("/process.Process/Start").String()
+	for i, process := range payload.Processes {
+		if isProcessRunning(runningKeys, process) {
+			result.Skipped++
+			klog.Infof("Skip restoring process %d/%d of sandbox %s, already running: %s", i+1, result.Total, sb.Name, describeProcess(process))
+			continue
+		}
+		if err := s.startEnvdProcess(sb.ID, processStartURL, process); err != nil {
+			return result, fmt.Errorf("start process %d/%d (%s): %w", i+1, result.Total, describeProcess(process), err)
+		}
+		result.Started++
+	}
+	return result, nil
+}
+
+// waitEnvdAndListProcesses lists envd's running processes, retrying until envd answers or
+// envdReadyTimeout elapses. The list doubles as the readiness check, so no health endpoint is needed.
+func waitEnvdAndListProcesses(dest *url.URL, token string) ([]e2bapi.ProcessInfo, error) {
+	payload, _ := json.Marshal(e2bapi.ListRequest{})
+	var running []e2bapi.ProcessInfo
+	var lastErr error
+	err := wait.PollUntilContextTimeout(context.Background(), envdRetryInterval, envdReadyTimeout, true, func(ctx context.Context) (bool, error) {
+		running, lastErr = listEnvdProcessesAt(dest, token, payload)
+		return lastErr == nil, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("envd not ready within %v: %v", envdReadyTimeout, lastErr)
+	}
+	return running, nil
+}
+
+// processKeys identifies a process by tag (when set) and by its command line.
+func processKeys(p e2bapi.ProcessInfo) []string {
+	keys := []string{"cmd:" + p.Config.Cmd + "\x00" + strings.Join(p.Config.Args, "\x00") + "\x00" + p.Config.Cwd}
+	if p.Tag != "" {
+		keys = append(keys, "tag:"+p.Tag)
+	}
+	return keys
+}
+
+func isProcessRunning(runningKeys map[string]bool, p e2bapi.ProcessInfo) bool {
+	for _, k := range processKeys(p) {
+		if runningKeys[k] {
+			return true
+		}
+	}
+	return false
+}
+
+// describeProcess renders a process for logs without its env vars, which may hold secrets.
+func describeProcess(p e2bapi.ProcessInfo) string {
+	return fmt.Sprintf("cmd=%q args=%q cwd=%q tag=%q", p.Config.Cmd, p.Config.Args, p.Config.Cwd, p.Tag)
+}
+
+// summarizeSnapshot describes a snapshot for logs and telemetry; the raw snapshot includes process env vars.
+func summarizeSnapshot(snapshot string) string {
+	if snapshot == "" {
+		return "none"
+	}
+	payload, err := decodeProcessSnapshot(snapshot)
+	if err != nil {
+		return "invalid"
+	}
+	return fmt.Sprintf("%d processes captured at %s", len(payload.Processes), payload.CapturedTime.Format(time.RFC3339))
 }
 
 // for application/connect+json
@@ -158,7 +266,7 @@ func (s *Controller) startEnvdProcess(token string, processStartURL string, proc
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), envdRequestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, processStartURL, bytes.NewReader(payload))
 	if err != nil {
@@ -170,7 +278,7 @@ func (s *Controller) startEnvdProcess(token string, processStartURL string, proc
 	//req.Header.Set("Connect-Timeout-Ms", "0")
 	req.Header.Set("Content-Type", "application/connect+json")
 
-	klog.Info("start envd process for ", processStartURL, ", with config ", process.Config)
+	klog.Infof("Starting envd process at %s: %s", processStartURL, describeProcess(process))
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -197,6 +305,6 @@ func (s *Controller) startEnvdProcess(token string, processStartURL string, proc
 		return fmt.Errorf("envd process start response missing pid, body %s", message)
 	}
 
-	klog.Infof("envd process started, pid=%d", startResponse.Event.Start.PID)
+	klog.Infof("envd process started, pid=%d: %s", startResponse.Event.Start.PID, describeProcess(process))
 	return nil
 }

@@ -11,19 +11,38 @@ consuming CPU and memory and **Resume** brings it back.
 
 ## How it works
 
+Taking a process snapshot (optional, explicit):
+
+- Call `sbx.create_snapshot()` (SDK) or the snapshot API while the sandbox is
+  running. The controller captures the list of processes currently running
+  inside it (via `envd`) and stores that snapshot as an annotation on the
+  sandbox's `ReplicaSet`. Call it again whenever the set of background
+  processes changes; `sbx.delete_snapshot()` removes it.
+
 Pausing a sandbox:
 
-1. Captures the list of processes currently running inside it (via `envd`)
-   and stores that snapshot as an annotation on the sandbox's `ReplicaSet`.
-2. Scales the `ReplicaSet` to `0` replicas — the Pod is terminated, so
+1. Scales the `ReplicaSet` to `0` replicas — the Pod is terminated, so
    compute usage drops to zero.
+2. Keeps the existing snapshot, if any, untouched. **Pause never captures a
+   snapshot by itself.**
 
 Resuming a sandbox:
 
 1. Scales the `ReplicaSet` back to `1` replica and waits for the new Pod to
    become ready.
-2. Replays the captured snapshot, restarting each process with the same
-   command and arguments it was launched with.
+2. If a snapshot exists, waits for `envd` to answer (retrying its process
+   list for up to 30s), then restarts each snapshotted process with the same
+   command, arguments and working directory. Processes that are already running
+   (matched by tag or command line) are skipped, so a repeated restore does
+   not start duplicates.
+
+!!! warning "Snapshots are no longer taken on pause"
+    Earlier versions captured the process list automatically on every pause.
+    Since V0.8.7 you must call `create_snapshot()` yourself, after starting
+    the background processes you want restored. If you stop all processes and
+    want nothing restored, call `create_snapshot()` again (an empty snapshot)
+    or `delete_snapshot()`. Sandboxes that still carry a snapshot from an
+    earlier automatic pause keep restoring it until it is replaced or deleted.
 
 !!! note "What survives, what doesn't"
     A fresh Pod is created on resume, so the container's local disk is
@@ -66,15 +85,17 @@ sequenceDiagram
 
     Client->>Controller: create(timeout=300, autoPause=true, autoResume=true)
     Controller->>Pod: start
+    Client->>Controller: create_snapshot()
+    Controller->>Pod: capture running processes (stored on ReplicaSet)
     Note over Controller: timeout elapses, sandbox idle
-    Controller->>Pod: snapshot running processes
-    Controller->>Pod: scale replicas to 0
+    Controller->>Pod: scale replicas to 0 (snapshot kept)
     Note over Pod: Pod terminated (status: paused)
 
     Client->>Controller: new request
     Controller->>Controller: status == paused && autoResume == true
     Controller->>Pod: scale replicas to 1, wait ready
-    Controller->>Pod: restart snapshotted processes
+    Controller->>Pod: wait for envd to answer (up to 30s)
+    Controller->>Pod: restart snapshotted processes not already running
     Controller-->>Client: request proxied through
 ```
 
@@ -99,13 +120,16 @@ sbx = Sandbox.create(
     lifecycle={"on_timeout": "pause", "auto_resume": True},
 )
 
-# a long-running background process — its command line gets captured on pause
+# a long-running background process
 sbx.commands.run(
     "PYTHONPATH=/workspace/pylibs PATH=/workspace/npm/bin:$PATH python3 server.py > service.log 2>&1",
     background=True,
     timeout=0,
     cwd="/workspace",
 )
+
+# capture it, so resume restarts it; pause does not do this for you
+sbx.create_snapshot()
 
 print(sbx.sandbox_id, "is running")
 ```
@@ -167,7 +191,45 @@ result = sbx.commands.run("tail service.log", cwd="/workspace")
 only restarts the process, it doesn't restore its old PID or any in-memory
 state, so `service.log` only has whatever the new process has written so
 far. `info.metadata["snapshot"]` keeps showing this same JSON — reflecting
-the *last* pause — until the sandbox pauses again.
+the *last* `create_snapshot()` — across any number of pause/resume cycles,
+until you call `create_snapshot()` or `delete_snapshot()` again.
+
+## Checking the resume result
+
+Every sandbox read (`get_info()`, `Sandbox.connect()`, `GET /api/v1/sandbox/<name>`)
+returns the latest resume in its metadata:
+
+| Key | Description |
+|-----|-------------|
+| `resumeStatus` | JSON with `podReady`, `snapshotRestored`, the restore counts (`total`, `started`, `skipped`), `error` and `updatedAt`. |
+| `resumedAt` | Time of the latest resume (RFC 3339). |
+| `resumeReason` | What triggered it, e.g. `api`, `SDKGetSandbox`, or a proxied request. |
+
+The resume fully succeeded when `podReady` and `snapshotRestored` are both
+`true`. `snapshotRestored` is also `true` when there was no snapshot to restore
+(`total` is `0`). While it is `false`, a non-empty `error` means the resume
+failed — the pod never became ready, or a process could not be restarted —
+and an empty `error` means it is still in progress. `resumeStatus` is cleared
+when the sandbox is paused again.
+
+```python
+import json
+
+info = Sandbox.connect(sbx.sandbox_id).get_info()
+status = json.loads(info.metadata.get("resumeStatus", "{}"))
+if status and not (status["podReady"] and status["snapshotRestored"]):
+    print("resume incomplete:", status.get("error"))
+```
+
+The same result is recorded as Kubernetes events on the sandbox:
+`SandboxSnapshotRestored` reports how many processes were started and how
+many were skipped because they were already running;
+`SandboxSnapshotRestoreFailed` names the process that failed and why.
+
+!!! note "`metadata['resumed']` was removed"
+    Earlier versions set `metadata["resumed"] = "true"` only on the response
+    that triggered an automatic resume. Use `resumedAt` or `resumeStatus`
+    instead; they are returned on every read.
 
 To manage the same sandbox by hand instead, use the native REST API:
 

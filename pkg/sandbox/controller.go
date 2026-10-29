@@ -109,17 +109,11 @@ func (s *Controller) Get(name string) (*Sandbox, error) {
 
 func (s *Controller) GetSandbox(rs *v1.ReplicaSet) (*Sandbox, error) {
 	raw := rs.Annotations[AnnotationSandboxData]
-	processSnapshotRaw := rs.Annotations[AnnotationProcessSnapshot]
 	sb := &Sandbox{}
 	json.Unmarshal([]byte(raw), sb)
 	sb.ReplicaSet = rs.DeepCopy()
 	sb.Status = deriveSandboxStatus(rs)
-	if sb.Metadata == nil {
-		sb.Metadata = map[string]string{}
-	}
-	if processSnapshotRaw != "" {
-		sb.Metadata["snapshot"] = processSnapshotRaw
-	}
+	sb.RefreshRuntimeMetadata()
 
 	return sb, nil
 }

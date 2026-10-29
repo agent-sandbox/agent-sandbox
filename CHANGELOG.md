@@ -97,4 +97,11 @@ V0.8.6 - 2026-10-22
 - Improve: user keys are now masked to the leading 1/2 instead of 2/3 in logs and endpoints such as `/api/v1/status`.
 - Change: the sandbox-create telemetry log message is now plain text instead of JSON, with env vars and process snapshots redacted.
 --------------------------
-
+V0.8.7 - 2026-10-22
+- Change: pause no longer captures a process snapshot automatically; create one explicitly via the SDK (`sbx.create_snapshot()`) or API, and pause keeps the existing snapshot. This prevents a pause on an unhealthy pod from overwriting a good snapshot with an empty process list, and an unreachable envd from blocking pause and scale-down. Sandboxes that already have an automatic snapshot keep using it until it is replaced or deleted.
+- Fix: intermittent resume failures; after the pod is ready, resume now retries envd's process list until envd answers (up to 30s) before restoring processes, since the startupProbe only checks the template port and fast-startup templates have no probe.
+- Improve: snapshot restore is now idempotent, skipping processes that are already running (matched by tag or command line) instead of starting duplicates.
+- Improve: clearer logs and events for pause/resume/snapshot (`SandboxSnapshotCreated`, `SandboxSnapshotRestored`, `SandboxSnapshotRestoreFailed`, etc.), with failures naming the stage they happened in; the raw snapshot and process env vars are no longer written to logs or telemetry.
+- Add: sandbox reads now return `resumeStatus` (`podReady`, `snapshotRestored`, restore counts and error), `resumedAt` and `resumeReason` in metadata; the resume fully succeeded when `podReady` and `snapshotRestored` are both true. The status is also stored in the ReplicaSet annotation `agent-sandbox.github.io/resume-status`.
+- Change: removed `metadata["resumed"]` from the automatic-resume response; use `resumedAt` or `resumeStatus` instead.
+--------------------------

@@ -312,7 +312,6 @@ func (a *Handler) ConnectSandbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resumed := false
 	if sb.Status == sandbox.Paused && sb.AutoResume {
 		err = a.controller.Resume(sb, "SDKGetSandbox")
 		if err != nil {
@@ -320,13 +319,11 @@ func (a *Handler) ConnectSandbox(w http.ResponseWriter, r *http.Request) {
 			sendAPIError(w, http.StatusFailedDependency, fmt.Sprintf("failed to resume sandbox %s: %v", sb.Name, err))
 			return
 		}
-		resumed = true
+		// metadata was read before the resume; show this resume's result
+		sb.RefreshRuntimeMetadata()
 	}
 
 	apiSbx := a.convertToE2BSandbox(sb)
-	if resumed {
-		apiSbx.Metadata["resumed"] = "true"
-	}
 
 	sendAPIOK(w, http.StatusOK, apiSbx)
 	return

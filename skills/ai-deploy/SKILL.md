@@ -211,18 +211,50 @@ def restart_service(sbx, workdir, match, start_cmd, port, log_file="service.log"
         raise RuntimeError(f"{match} failed to start on port {port}, log:\n{log}") from None
 ```
 
-### 8. Snapshot — optional, only if the start command changed
+If the start command is more than a single program — env vars, several
+steps (e.g. a migration before the server), or anything needing careful
+quoting — put it in a script under the working directory, such as
+`server.sh`, and start that instead. The snapshot (step 8) then records
+just `bash server.sh`, while the script itself is re-read from
+`/workspace` on every resume: changing the startup steps becomes a
+code-only redeploy with no new snapshot, and there is no long command line
+to get wrong. End the script with `exec` so the server replaces the
+script's shell:
 
-Retake only when the *command line* changes (new entry file, port, or
-flags) — a resumed sandbox re-runs the recorded command from scratch and
-picks up whatever's currently on disk, so a code-only redeploy doesn't
-need one:
+```python
+sbx.files.write(f"{WORKDIR}/server.sh", """#!/bin/bash
+set -e
+export PYTHONPATH=/workspace/pylibs
+python3 migrate.py
+exec python3 server.py
+""")
+restart_service(sbx, WORKDIR, match="server.sh", start_cmd="bash server.sh", port=8000)
+```
+
+### 8. Snapshot — required on first deploy and when the start command changes
+
+Pausing does **not** record what's running: on resume the platform
+restarts exactly the processes the last `sbx.create_snapshot()` recorded,
+and nothing if there is no snapshot. So take one on the first deploy,
+after every service in the sandbox is up — it records whatever is running
+at that moment. Retake it only when the *command line* changes (new entry
+file, port, or flags) — a resumed sandbox re-runs the recorded command
+from scratch and picks up whatever's currently on disk, so a code-only
+redeploy doesn't need one:
 
 ```python
 def maybe_snapshot(sbx, entry, start_cmd, created):
     if created or entry.get("start_cmd") != start_cmd:
         sbx.create_snapshot()
     entry["start_cmd"] = start_cmd
+```
+
+To confirm a resume brought the service back, read the sandbox's
+`resumeStatus` — `podReady` and `snapshotRestored` should both be `true`,
+otherwise `error` says what failed:
+
+```python
+status = json.loads(sbx.get_info().metadata.get("resumeStatus", "{}"))
 ```
 
 ### 9. Save deploy state
