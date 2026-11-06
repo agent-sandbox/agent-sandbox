@@ -239,7 +239,7 @@ func (a *Handler) ListSandbox(r *http.Request) (interface{}, error) {
 	if strings.HasPrefix(user, "sys-") {
 		sbs, err = a.controller.ListAll()
 	} else {
-		sbs, err = a.controller.List(user)
+		sbs, err = a.controller.List(user, "")
 	}
 
 	if err != nil {
@@ -824,6 +824,16 @@ func (a *Handler) SaveTemplatesConfig(r *http.Request) (interface{}, error) {
 	err := json.NewDecoder(r.Body).Decode(&templates)
 	if err != nil {
 		return "", fmt.Errorf("failed to decode request body: %v", err)
+	}
+	// Reject invalid default labels here: Make would otherwise fail every create (and every pool
+	// replenish) of the template at runtime.
+	for _, t := range templates {
+		if t == nil {
+			continue
+		}
+		if _, err := sandbox.ParseLabels(t.Metadata[sandbox.MetadataLabels]); err != nil {
+			return "", fmt.Errorf("invalid labels in template %s: %v", t.Name, err)
+		}
 	}
 
 	templatesData, err := json.MarshalIndent(templates, "", "  ")

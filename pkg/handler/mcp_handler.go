@@ -152,7 +152,7 @@ func (a *Handler) ListSandboxTool(ctx context.Context, req *mcp.CallToolRequest,
 		return nil, nil, fmt.Errorf("failed to get user from context")
 	}
 
-	sbs, err := a.controller.List(user)
+	sbs, err := a.controller.List(user, "")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list sandboxes: %v", err)
 	}

@@ -54,6 +54,9 @@ const (
 	AnnotationProcessSnapshot = "agent-sandbox.github.io/process-snapshot"
 	// AnnotationResumeStatus holds the JSON ResumeStatus of the latest resume; cleared on pause.
 	AnnotationResumeStatus = "agent-sandbox.github.io/resume-status"
+	// AnnotationLastAppliedConfiguration holds the previous sandbox configuration: the sandbox-data value
+	// before the latest user update. sandbox-data always holds the latest one.
+	AnnotationLastAppliedConfiguration = "agent-sandbox.github.io/last-applied-configuration"
 )
 
 // Metadata keys filled from ReplicaSet annotations when a sandbox is read; they are not persisted.
@@ -311,8 +314,15 @@ func (sb *Sandbox) Make() error {
 	if sb.Metadata == nil {
 		sb.Metadata = make(map[string]string)
 	}
+	// labels merge per key (sandbox wins); see mergeLabels.
+	if err := sb.mergeLabels(t.Metadata[MetadataLabels]); err != nil {
+		return err
+	}
 	if t.Metadata != nil {
 		for k, v := range t.Metadata {
+			if k == MetadataLabels {
+				continue
+			}
 			if _, ok := sb.Metadata[k]; !ok {
 				sb.Metadata[k] = v
 			}

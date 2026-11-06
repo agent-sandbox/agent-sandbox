@@ -63,6 +63,8 @@ func buildReplicaSet(sb *Sandbox) (*v1.ReplicaSet, error) {
 		return nil, fmt.Errorf("unmarshal blueprint fail: %v", err)
 	}
 
+	applyUserLabelsToReplicaSet(rsObj, sb.UserLabels())
+
 	// set startupProbe port to pool probe port if is pool rs
 	if sb.IsPool {
 		container := rsObj.Spec.Template.Spec.Containers[0]

@@ -19,8 +19,11 @@ package e2b
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -32,6 +35,7 @@ import (
 	"github.com/agent-sandbox/agent-sandbox/pkg/sandbox"
 	"github.com/agent-sandbox/agent-sandbox/pkg/telemetry"
 	"github.com/agent-sandbox/agent-sandbox/pkg/utils"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog/v2"
 )
 
@@ -83,7 +87,22 @@ func (a *Handler) ListSandboxes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	sbs, err := a.controller.List(user)
+	// metadata["labels"] is a K8s label selector, filtered by the controller on the K8s side;
+	// the remaining metadata keys are matched exactly below.
+	// The Python SDK quotes each value before url-encoding the pairs, so one encoding layer is left
+	// after parseMetadataFilter. A valid selector never contains '%', so decoding it once more is safe.
+	labelSelector, err := url.PathUnescape(metaFilter[sandbox.MetadataLabels])
+	if err != nil {
+		sendAPIError(w, http.StatusBadRequest, fmt.Sprintf("%v: %v", sandbox.ErrInvalidLabelSelector, err))
+		return
+	}
+	delete(metaFilter, sandbox.MetadataLabels)
+
+	sbs, err := a.controller.List(user, labelSelector)
+	if errors.Is(err, sandbox.ErrInvalidLabelSelector) {
+		sendAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		sendAPIError(w, http.StatusInternalServerError, fmt.Sprintf("failed to list sandboxes: %v", err))
 		return
@@ -247,11 +266,43 @@ func (a *Handler) SnapshotSandbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	user := auth.GetUserTokenFromContext(r.Context())
+	if user == "" {
+		sendAPIError(w, http.StatusBadRequest, "User not found, api key may be invalid")
+		return
+	}
+
 	sb, err := a.controller.GetByID(sandboxID)
+	// Another user's sandbox is reported as not found, so its existence is not revealed.
+	if err == nil && sb.User != user {
+		err = fmt.Errorf("sandbox %s is not owned by the caller", sandboxID)
+	}
 	if err != nil {
 		klog.Errorf("Get sandbox %s error: %v", sandboxID, err)
 		sendAPIError(w, http.StatusNotFound, fmt.Sprintf("sandbox %s not found", sandboxID))
 		return
+	}
+
+	// The e2b SDK has no update-metadata call, so create_snapshot carries a JSON "metadata" header:
+	// "labels" replaces the labels, "conditions" (a label selector) must match the current labels.
+	// Both are applied before the snapshot; invalid input or unmet conditions skip it.
+	if raw := r.Header.Get("metadata"); raw != "" {
+		userLabels, conditions, perr := parseSnapshotMetadata(raw)
+		if perr != nil {
+			sendAPIError(w, http.StatusBadRequest, perr.Error())
+			return
+		}
+		if userLabels != nil || conditions != nil {
+			if err = a.controller.UpdateUserLabels(sb, userLabels, conditions); err != nil {
+				if errors.Is(err, sandbox.ErrConditionsNotMet) {
+					sendAPIError(w, http.StatusPreconditionFailed, err.Error())
+					return
+				}
+				klog.Errorf("Failed to update labels of sandbox %s: %v", sb.Name, err)
+				sendAPIError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
 	}
 
 	err = a.controller.SandboxProcessSnapshot(sb)
@@ -428,7 +479,8 @@ func (a *Handler) convertToE2BSandbox(sb *sandbox.Sandbox) *api.Sandbox {
 	apiSbx.TrafficAccessToken = sb.ID
 
 	if sb.Metadata != nil {
-		apiSbx.Metadata = sb.Metadata
+		// clone: sb.Metadata may belong to a cached sandbox
+		apiSbx.Metadata = maps.Clone(sb.Metadata)
 	}
 
 	apiSbx.Metadata["name"] = sb.Name
@@ -456,3 +508,26 @@ func (a *Handler) convertToE2BSandbox(sb *sandbox.Sandbox) *api.Sandbox {
 
 	return apiSbx
 }
+
+// parseSnapshotMetadata reads the JSON "metadata" header of create_snapshot,
+// e.g. {"labels":"team=a,count=3","conditions":"count=2,agentid=abc"}.
+// userLabels is nil when the header has no labels key (labels unchanged), and empty for "" (clear all).
+// conditions is a K8s label selector over the current labels, nil when absent or empty.
+func parseSnapshotMetadata(raw string) (userLabels map[string]string, conditions labels.Selector, err error) {
+	var meta map[string]string
+	if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+		return nil, nil, fmt.Errorf("invalid metadata header, expected a JSON object of strings: %v", err)
+	}
+	if v, ok := meta[sandbox.MetadataLabels]; ok {
+		if userLabels, err = sandbox.ParseLabels(v); err != nil {
+			return nil, nil, err
+		}
+	}
+	if conditions, err = sandbox.ParseUserSelector(meta[metadataConditions]); err != nil {
+		return nil, nil, fmt.Errorf("invalid conditions: %v", err)
+	}
+	return userLabels, conditions, nil
+}
+
+// metadataConditions is the create_snapshot metadata key holding the label selector the update requires.
+const metadataConditions = "conditions"

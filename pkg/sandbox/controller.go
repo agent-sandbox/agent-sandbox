@@ -173,8 +173,13 @@ func (s *Controller) ListAll() ([]*Sandbox, error) {
 	return s.DoList(selector)
 }
 
-func (s *Controller) List(user string) ([]*Sandbox, error) {
-	selector, _ := labels.Parse(fmt.Sprintf("%s=%s", UserLabel, user))
+// List returns the user's sandboxes matching labelSelector (K8s selector syntax over user labels, "" = all).
+// Filtering runs on the ReplicaSet lister; an invalid selector returns ErrInvalidLabelSelector.
+func (s *Controller) List(user, labelSelector string) ([]*Sandbox, error) {
+	selector, err := BuildListSelector(user, labelSelector)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidLabelSelector, err)
+	}
 	return s.DoList(selector)
 }
 
@@ -262,6 +267,12 @@ func (s *Controller) Create(sb *Sandbox) (*Sandbox, error) {
 		errMsg := fmt.Errorf("timeout waiting for sandbox to be ready, please get it leater or check sandbox status, error: %v", err)
 		klog.Error(errMsg)
 		return sb, errMsg
+	}
+
+	// Best effort: set envd's access token and the sandbox env vars. A failure
+	// (e.g. the image runs no envd) keeps the previous behavior.
+	if initErr := s.initEnvd(sb); initErr != nil {
+		klog.Warningf("Skipped envd init of sandbox %s: %v", sb.Name, initErr)
 	}
 
 	sb.Status = Running

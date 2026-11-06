@@ -100,16 +100,7 @@ func (s *Controller) SandboxProcessSnapshot(sb *Sandbox) error {
 	}
 	snapshotSummary := summarizeSnapshot(snapshot)
 
-	rsCopy := sb.ReplicaSet.DeepCopy()
-	annotations := rsCopy.GetAnnotations()
-	if annotations == nil {
-		annotations = map[string]string{}
-	}
-
-	annotations[AnnotationProcessSnapshot] = snapshot
-	rsCopy.SetAnnotations(annotations)
-
-	_, err = s.kclient.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Update(context.TODO(), rsCopy, v1meta.UpdateOptions{})
+	err = s.saveProcessSnapshot(sb, snapshot)
 	if err != nil {
 		klog.Errorf("Failed to save process snapshot of sandbox %s: %v", sb.Name, err)
 	} else {
@@ -118,6 +109,25 @@ func (s *Controller) SandboxProcessSnapshot(sb *Sandbox) error {
 	s.EventSnapshot(sb, "SandboxSnapshotCreated", "SandboxSnapshotCreateFailed", snapshotSummary, err)
 	s.tlogOp(sb, telemetry.EventNameSandboxSnapshot, "", "snapshot: "+snapshotSummary, err, start)
 	return err
+}
+
+// saveProcessSnapshot writes the snapshot annotation with a merge patch, not an Update of sb.ReplicaSet:
+// a labels update just before changes the pod template, so the ReplicaSet controller bumps its status
+// and the cached resourceVersion would conflict.
+func (s *Controller) saveProcessSnapshot(sb *Sandbox, snapshot string) error {
+	patch, err := json.Marshal(map[string]any{
+		"metadata": map[string]any{"annotations": map[string]string{AnnotationProcessSnapshot: snapshot}},
+	})
+	if err != nil {
+		return err
+	}
+	updated, err := s.kclient.AppsV1().ReplicaSets(config.Cfg.SandboxNamespace).Patch(
+		context.TODO(), sb.Name, types.MergePatchType, patch, v1meta.PatchOptions{})
+	if err != nil {
+		return err
+	}
+	sb.ReplicaSet = updated
+	return nil
 }
 
 func (s *Controller) DeleteProcessSnapshot(sb *Sandbox) error {
@@ -200,6 +210,13 @@ func (s *Controller) Resume(sb *Sandbox, reason string) error {
 	}
 	klog.Infof("Sandbox %s pod is ready after %v", sb.Name, time.Since(start))
 	status.PodReady = true
+
+	// The resumed pod runs a fresh envd: set its token and env vars again before
+	// restoring processes, so restored processes get the sandbox env vars too.
+	// Best effort, like on create; idempotent for the caller that lost the update race.
+	if initErr := s.initEnvd(sb); initErr != nil {
+		klog.Warningf("Skipped envd init of resumed sandbox %s: %v", sb.Name, initErr)
+	}
 
 	if snapshot != "" {
 		restoreStart := time.Now()

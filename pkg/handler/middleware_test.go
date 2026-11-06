@@ -122,3 +122,21 @@ func captureKlog(t *testing.T, v string) *bytes.Buffer {
 	})
 	return &buf
 }
+
+// e2b SDKs parse a 401 body as {"code":<int>,"message":<string>} and fail without "message".
+func TestWriteUnauthorizedShape(t *testing.T) {
+	cases := []struct{ path, want string }{
+		{"/e2b/v1/sandboxes/sb1/snapshots", `{"code":401,"message":"Unauthorized"}`},
+		{"/mcp", `{"code":"401","error":"Unauthorized"}`},
+	}
+	for _, tc := range cases {
+		rec := httptest.NewRecorder()
+		writeUnauthorized(rec, httptest.NewRequest(http.MethodPost, tc.path, nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s: status = %d", tc.path, rec.Code)
+		}
+		if got := strings.TrimSpace(rec.Body.String()); got != tc.want {
+			t.Errorf("%s: body = %s, want %s", tc.path, got, tc.want)
+		}
+	}
+}

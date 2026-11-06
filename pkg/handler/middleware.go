@@ -108,7 +108,7 @@ func ApiKeyAuthMiddleware(next http.Handler) http.Handler {
 
 		token, ok := auth.ValidateRequestToken(r)
 		if !ok {
-			writeUnauthorized(w)
+			writeUnauthorized(w, r)
 			return
 		}
 
@@ -128,9 +128,15 @@ func shouldProtectAPIRequest(r *http.Request) bool {
 		strings.HasPrefix(path, e2bapi.BaseURL+"/")
 }
 
-func writeUnauthorized(w http.ResponseWriter) {
+// writeUnauthorized answers 401. e2b API calls get the e2b error shape {"code":401,"message":...},
+// which the e2b SDKs require to parse the error; other APIs keep their own response shape.
+func writeUnauthorized(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
+	if strings.HasPrefix(r.URL.Path, e2bapi.BaseURL+"/") {
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": http.StatusUnauthorized, "message": "Unauthorized"})
+		return
+	}
 	_ = json.NewEncoder(w).Encode(&response{
 		Code:  "401",
 		Error: "Unauthorized",

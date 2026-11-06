@@ -17,4 +17,5 @@
 1. - [ ] Update Sandbox config e.g. resources, env, args, etc. by create with sandbox id, e.g. create(metadata:{sandbox_id:xxx}).
 1. - [ ] Audit for cmd or file ops
 1. - [ ] return events for get info
-
+1. - [ ] Treat API keys with and without the e2b_ prefix as the same user
+1. - [ ] Use merge patch instead of full update where no optimistic lock is needed: DeleteProcessSnapshot, pod labels sync, active lease renew
