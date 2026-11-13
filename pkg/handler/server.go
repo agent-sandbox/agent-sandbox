@@ -116,7 +116,10 @@ func (ahh *ApiHttpHandler) regHandlers() {
 	e2bHeader := e2bapi.NewHandler(ahh.rootCtx, c, a, srHandler)
 	e2bHeader.RegisterHandlersWithOptions(ahh.mux)
 
-	ahh.mux.Handle("/mcp", sbHeader.McpSseHandler())
+	// MCP feature flag (MCP_ENABLE, default true); unregistered /mcp returns 404.
+	if config.Cfg.McpEnable {
+		ahh.mux.Handle("/mcp", sbHeader.McpSseHandler())
+	}
 
 	ahh.mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		// return the json of status and version

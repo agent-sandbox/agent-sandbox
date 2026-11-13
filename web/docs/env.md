@@ -53,6 +53,7 @@ spec:
 | `ENV_NAME` | `dev` | Environment name label |
 | `POOL_ENABLE` | `false` | Enable the Sandbox Pool syncer |
 | `PAUSE_RESUME` | `false` | Enable Pause/Resume lifecycle |
+| `MCP_ENABLE` | `true` | Expose the `/mcp` endpoint |
 | `TELEMETRY_ENABLED` | `false` | Enable lifecycle-event telemetry |
 | `TELEMETRY_OTLP_ENDPOINT` | `victorialogs:9428` | OTLP backend endpoint |
 | `TELEMETRY_OTLP_URL_PATH` | `/insert/opentelemetry/v1/logs` | OTLP URL path |
