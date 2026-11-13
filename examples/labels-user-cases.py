@@ -79,10 +79,12 @@ def main():
         case_cleanup()
     finally:
         for sbx in created:
+            if sbx.sandbox_id in killed:
+                continue  # killed by the cleanup case; killing again would 404
             try:
                 sbx.kill()
             except Exception:
-                pass  # already killed by the cleanup case
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +177,7 @@ def case_cleanup():
     say(f"state=done -> {ids(done)}, killing them")
     for item in done:
         Sandbox.kill(item.sandbox_id)
+        killed.add(item.sandbox_id)
     say(f"left: state=done -> {len(find('state=done'))}, state=running -> {len(find('state=running'))}")
 
 
@@ -219,6 +222,7 @@ def patch_labels(sandbox_id: str, changes: Dict[str, Optional[str]], conditions:
 # ---------------------------------------------------------------------------
 
 created: List[Sandbox] = []  # every sandbox of this run, killed at the end of main
+killed: set = set()  # ids already killed during the run, skipped by the final cleanup
 
 
 def create(**labels: str) -> Sandbox:
