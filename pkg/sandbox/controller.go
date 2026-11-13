@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -71,6 +72,42 @@ func NewController(ctx context.Context, cfg *rest.Config, pl *PoolManager, recor
 	return sh
 }
 
+// ErrSandboxNotFound is matched (errors.Is) by lookups that found no sandbox, and by
+// GetOwned/GetOwnedByID when the caller may not access it.
+var ErrSandboxNotFound = errors.New("sandbox not found")
+
+// notFoundError keeps the existing per-lookup messages while matching ErrSandboxNotFound.
+type notFoundError struct{ msg string }
+
+func (e *notFoundError) Error() string        { return e.msg }
+func (e *notFoundError) Is(target error) bool { return target == ErrSandboxNotFound }
+
+// GetOwned returns sandbox `name` if caller may access it (Sandbox.AccessibleBy). A sandbox the
+// caller may not access yields ErrSandboxNotFound, so other tenants' sandboxes are not revealed.
+// This is the single access check for name-based APIs (REST, MCP).
+func (s *Controller) GetOwned(name, caller string) (*Sandbox, error) {
+	sb, err := s.Get(name)
+	if err != nil {
+		return nil, err
+	}
+	if !sb.AccessibleBy(caller) {
+		return nil, &notFoundError{msg: fmt.Sprintf("no Sandbox found with name %s", name)}
+	}
+	return sb, nil
+}
+
+// GetOwnedByID is GetOwned for ID-based APIs (E2B).
+func (s *Controller) GetOwnedByID(id, caller string) (*Sandbox, error) {
+	sb, err := s.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if !sb.AccessibleBy(caller) {
+		return nil, &notFoundError{msg: fmt.Sprintf("no rs found with id %s", id)}
+	}
+	return sb, nil
+}
+
 func (s *Controller) GetRSByID(id string) (*v1.ReplicaSet, error) {
 	selector := labels.Set{IDLabel: id, PoolLabel: "false"}.AsSelector()
 	rss, err := rsclient.Get(s.rootCtx).Lister().ReplicaSets(config.Cfg.SandboxNamespace).List(selector)
@@ -80,7 +117,7 @@ func (s *Controller) GetRSByID(id string) (*v1.ReplicaSet, error) {
 	}
 	if len(rss) == 0 {
 		klog.Warningf("No rs found with id %s", id)
-		return nil, fmt.Errorf("no rs found with id %s", id)
+		return nil, &notFoundError{msg: fmt.Sprintf("no rs found with id %s", id)}
 	}
 	return rss[0], nil
 }
@@ -101,7 +138,7 @@ func (s *Controller) Get(name string) (*Sandbox, error) {
 	}
 
 	if len(rss) == 0 {
-		return nil, fmt.Errorf("no Sandbox found with name %s", name)
+		return nil, &notFoundError{msg: fmt.Sprintf("no Sandbox found with name %s", name)}
 	}
 
 	return s.GetSandbox(rss[0])

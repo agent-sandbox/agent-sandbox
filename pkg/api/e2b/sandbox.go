@@ -39,6 +39,23 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// getOwnedSandbox looks up sandboxID for the caller via Controller.GetOwnedByID (the shared access
+// rule). On failure it writes the error and returns nil: not found (including another user's
+// sandbox, so its existence is not revealed) -> 404, any other lookup error -> 400.
+func (a *Handler) getOwnedSandbox(w http.ResponseWriter, r *http.Request, sandboxID string) *sandbox.Sandbox {
+	sb, err := a.controller.GetOwnedByID(sandboxID, auth.GetUserTokenFromContext(r.Context()))
+	if err != nil {
+		klog.Errorf("Get sandbox %s error: %v", sandboxID, err)
+		if errors.Is(err, sandbox.ErrSandboxNotFound) {
+			sendAPIError(w, http.StatusNotFound, fmt.Sprintf("sandbox %s not found", sandboxID))
+		} else {
+			sendAPIError(w, http.StatusBadRequest, fmt.Sprintf("failed to get sandbox %s: %v", sandboxID, err))
+		}
+		return nil
+	}
+	return sb
+}
+
 func (a *Handler) GetSandbox(w http.ResponseWriter, r *http.Request) {
 	sandboxID := r.PathValue("sandboxID")
 	if sandboxID == "" {
@@ -48,10 +65,8 @@ func (a *Handler) GetSandbox(w http.ResponseWriter, r *http.Request) {
 
 	klog.V(2).Infof("Get sandbox sandboxID=%s", sandboxID)
 
-	sb, err := a.controller.GetByID(sandboxID)
-	if err != nil {
-		klog.Errorf("Get sandbox %s error: %v", sandboxID, err)
-		sendAPIError(w, http.StatusNotFound, fmt.Sprintf("sandbox %s not found", sandboxID))
+	sb := a.getOwnedSandbox(w, r, sandboxID)
+	if sb == nil {
 		return
 	}
 
@@ -133,6 +148,10 @@ func (a *Handler) DeleteSandbox(w http.ResponseWriter, r *http.Request) {
 	}
 
 	klog.V(2).Infof("Delete sandbox sandboxID=%s", sandboxID)
+
+	if a.getOwnedSandbox(w, r, sandboxID) == nil {
+		return
+	}
 
 	err := a.controller.DeleteByIDWithReason(sandboxID, telemetry.ReasonE2BSDK)
 	if err != nil {
@@ -272,16 +291,11 @@ func (a *Handler) SnapshotSandbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sb, err := a.controller.GetByID(sandboxID)
-	// Another user's sandbox is reported as not found, so its existence is not revealed.
-	if err == nil && sb.User != user {
-		err = fmt.Errorf("sandbox %s is not owned by the caller", sandboxID)
-	}
-	if err != nil {
-		klog.Errorf("Get sandbox %s error: %v", sandboxID, err)
-		sendAPIError(w, http.StatusNotFound, fmt.Sprintf("sandbox %s not found", sandboxID))
+	sb := a.getOwnedSandbox(w, r, sandboxID)
+	if sb == nil {
 		return
 	}
+	var err error
 
 	// The e2b SDK has no update-metadata call, so create_snapshot carries a JSON "metadata" header:
 	// "labels" replaces the labels, "conditions" (a label selector) must match the current labels.
@@ -327,14 +341,12 @@ func (a *Handler) DeleteSnapshotSandbox(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	sb, err := a.controller.GetByID(sandboxID)
-	if err != nil {
-		klog.Errorf("Get sandbox %s error: %v", sandboxID, err)
-		sendAPIError(w, http.StatusNotFound, fmt.Sprintf("sandbox %s not found", sandboxID))
+	sb := a.getOwnedSandbox(w, r, sandboxID)
+	if sb == nil {
 		return
 	}
 
-	err = a.controller.DeleteProcessSnapshot(sb)
+	err := a.controller.DeleteProcessSnapshot(sb)
 	if err != nil {
 		klog.Errorf("Failed to delete snapshot sandbox %s: %v", sb.Name, err)
 		sendAPIError(w, http.StatusInternalServerError, fmt.Sprintf("failed to delete snapshot sandbox %s: %v", sb.Name, err))
@@ -356,15 +368,13 @@ func (a *Handler) ConnectSandbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sb, err := a.controller.GetByID(sandboxID)
-	if err != nil {
-		klog.Errorf("Get sandbox %s error: %v", sandboxID, err)
-		sendAPIError(w, http.StatusNotFound, fmt.Sprintf("sandbox %s not found", sandboxID))
+	sb := a.getOwnedSandbox(w, r, sandboxID)
+	if sb == nil {
 		return
 	}
 
 	if sb.Status == sandbox.Paused && sb.AutoResume {
-		err = a.controller.Resume(sb, "SDKGetSandbox")
+		err := a.controller.Resume(sb, "SDKGetSandbox")
 		if err != nil {
 			klog.Errorf("Failed to resume sandbox %s: %v", sb.Name, err)
 			sendAPIError(w, http.StatusFailedDependency, fmt.Sprintf("failed to resume sandbox %s: %v", sb.Name, err))

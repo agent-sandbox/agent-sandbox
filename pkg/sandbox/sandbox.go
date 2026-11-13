@@ -22,9 +22,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agent-sandbox/agent-sandbox/pkg/auth"
 	"github.com/agent-sandbox/agent-sandbox/pkg/config"
 	"github.com/google/uuid"
 	v1 "k8s.io/api/apps/v1"
+	"k8s.io/klog/v2"
 )
 
 // Defines values for SandboxState.
@@ -197,6 +199,47 @@ func (sb *Sandbox) String() string {
 	return fmt.Sprintf("%+v", cp)
 }
 
+// ToView returns a copy of the sandbox for output to callers (API, MCP); all response-side
+// redaction belongs here. The stored sandbox-data annotation still needs raw values, so
+// redaction happens on output rather than via json:"-".
+//
+// Currently redacted:
+//   - User: the owner's raw API token (the system token for pool replicas), masked.
+//
+// The copy is shallow: when redacting a map or slice field, clone it first so the
+// informer-cached original is not mutated.
+func (sb *Sandbox) ToView() *Sandbox {
+	if sb == nil {
+		return nil
+	}
+	cp := *sb
+	cp.User = MaskUserKey(cp.User)
+	return &cp
+}
+
+// AccessibleBy reports whether caller (a raw API token) may access this sandbox: its owner,
+// or the admin token (auth.IsAdmin). Pool replicas are owned by the system token, so only admins match.
+func (sb *Sandbox) AccessibleBy(caller string) bool {
+	if sb == nil || caller == "" {
+		klog.Warningf("invalid access sandbox %v owned by %v", sb, caller)
+		return false
+	}
+	allow := auth.TrimUserName(sb.User) == auth.TrimUserName(caller) || auth.IsAdmin(caller)
+	if !allow {
+		klog.Warningf("caller %q cannot access sandbox %q owned by %q", caller, sb.Name, sb.User)
+	}
+	return allow
+}
+
+// ToViewList applies ToView to every sandbox; the input slice (often informer-cache backed) is not modified.
+func ToViewList(sbs []*Sandbox) []*Sandbox {
+	out := make([]*Sandbox, len(sbs))
+	for i, sb := range sbs {
+		out[i] = sb.ToView()
+	}
+	return out
+}
+
 // Sandbox values process: GetDefaultSandbox->request overwrite->Make->setDefaultValueOfSandbox
 
 func GetDefaultSandbox() *Sandbox {
@@ -258,6 +301,11 @@ func validAndRestValueOfSandbox(sb *Sandbox) error {
 }
 
 func (sb *Sandbox) Make() error {
+	// Validate caller input before template values are merged in; every create path calls Make.
+	if err := sb.validateInputChars(); err != nil {
+		return err
+	}
+
 	// remove '-'
 	id := strings.Replace(uuid.NewString(), "-", "", -1)
 	sb.ID = id
@@ -349,7 +397,7 @@ func (sb *Sandbox) Make() error {
 		userSig := "default"
 		if sb.User != "" {
 			// remove e2b_ prefix, e.g. e2b_testuser-aef134ef-7aa1-945e-9399-7df9a4ad0c3f
-			userSig = strings.TrimPrefix(sb.User, "e2b_")
+			userSig = auth.TrimUserName(sb.User)
 			l := len(userSig)
 			if l > 10 {
 				l = 10

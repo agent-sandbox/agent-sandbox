@@ -23,7 +23,6 @@ import (
 	"net/http"
 
 	"github.com/agent-sandbox/agent-sandbox/pkg/auth"
-	"github.com/agent-sandbox/agent-sandbox/pkg/config"
 	"github.com/agent-sandbox/agent-sandbox/pkg/sandbox"
 	"github.com/agent-sandbox/agent-sandbox/pkg/telemetry"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -44,12 +43,11 @@ func (a *Handler) McpSseHandler() *mcp.StreamableHTTPHandler {
 	server.AddReceivingMiddleware(createLoggingMiddleware())
 
 	// Add the tools.
-	templatesDesc := config.GetTemplatesForMCPTools()
 	inputSchema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
 			"name":     {Type: "string", Description: "The name of the Sandbox to create. You can leave it empty to auto generate or specify it yourself with contextual meaning. only contain lowercase letters numbers and '-', max length 50, add timestamp suffix to avoid name conflict, e.g. 'sandbox-execute-code-1766483780."},
-			"template": {Type: "string", Description: "The template name to use for creating the Sandbox. Must be one of the predefined templates. Available Templates:\n" + templatesDesc},
+			"template": {Type: "string", Description: "The template name to use for creating the Sandbox. Must be one of the predefined templates. "},
 		},
 	}
 	inputSchemaName := &jsonschema.Schema{
@@ -157,7 +155,7 @@ func (a *Handler) ListSandboxTool(ctx context.Context, req *mcp.CallToolRequest,
 		return nil, nil, fmt.Errorf("failed to list sandboxes: %v", err)
 	}
 
-	sbsJson, err := json.MarshalIndent(sbs, "", "  ")
+	sbsJson, err := json.MarshalIndent(sandbox.ToViewList(sbs), "", "  ")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal sandboxes: %v", err)
 	}
@@ -176,12 +174,12 @@ func (a *Handler) GetSandboxTool(ctx context.Context, req *mcp.CallToolRequest, 
 
 	klog.V(2).Infof("Get sandbox tool by name=%s", input.Name)
 
-	sb, _ := a.controller.Get(input.Name)
-	if sb == nil {
-		return nil, nil, fmt.Errorf("sandbox %s not found", input.Name)
+	sb, err := a.getOwnedSandbox(ctx, input.Name)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	sbJson, err := json.Marshal(sb)
+	sbJson, err := json.Marshal(sb.ToView())
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal sandbox %s: %v", input.Name, err)
 	}
@@ -206,6 +204,10 @@ func (a *Handler) DelSandboxTool(ctx context.Context, req *mcp.CallToolRequest, 
 	}
 
 	klog.V(2).Infof("Delete sandbox tool by name=%s", input.Name)
+
+	if _, err := a.getOwnedSandbox(ctx, input.Name); err != nil {
+		return nil, nil, err
+	}
 
 	err := a.controller.DeleteWithReason(input.Name, telemetry.ReasonMCP)
 	if err != nil {

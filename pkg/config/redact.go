@@ -62,9 +62,9 @@ func (c *Config) String() string {
 	return fmt.Sprintf("{LeaderName:%s APIVersion:%s APIBaseURL:%s ServerAddr:%s SystemToken:%s APITokens:%d "+
 		"RateLimit:%+v RateLimitUsers:%d Telemetry:%+v SandboxNamespace:%s SandboxBlueprintFile:%s "+
 		"SandboxTemplatesConfigFile:%s SandboxDefaultImage:%s SandboxDefaultTemplate:%s ConfigmapName:%s "+
-		"EnvName:%s LogLevel:%s ExperimentTokens:%s PauseResume:%v PoolEnable:%v}",
+		"EnvName:%s LogLevel:%s ExperimentTokens:%s PauseResume:%v PoolEnable:%v McpEnable:%v}",
 		c.LeaderName, c.APIVersion, c.APIBaseURL, c.ServerAddr, redactIfSet(c.SystemToken), len(c.GetAPITokens()),
 		c.RateLimit, len(c.RateLimitUsers), c.Telemetry, c.SandboxNamespace, c.SandboxBlueprintFile,
 		c.SandboxTemplatesConfigFile, c.SandboxDefaultImage, c.SandboxDefaultTemplate, c.ConfigmapName,
-		c.EnvName, c.LogLevel, redactIfSet(c.ExperimentTokens), c.PauseResume, c.PoolEnable)
+		c.EnvName, c.LogLevel, redactIfSet(c.ExperimentTokens), c.PauseResume, c.PoolEnable, c.McpEnable)
 }

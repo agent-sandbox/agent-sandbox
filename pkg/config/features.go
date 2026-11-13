@@ -29,6 +29,10 @@ type FeatureConfig struct {
 	PauseResume bool `split_words:"true" required:"false"`
 
 	PoolEnable bool `split_words:"true" required:"false"`
+
+	// McpEnable exposes the /mcp endpoint. Enabled by default. Not gated by
+	// ExperimentTokens since MCP was generally available before becoming a flag.
+	McpEnable bool `split_words:"true" default:"true" required:"false"`
 }
 
 // CheckFeature checks is experiment user. If not set, returns true for all users.

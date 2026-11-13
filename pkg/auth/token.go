@@ -8,8 +8,19 @@ import (
 	"github.com/agent-sandbox/agent-sandbox/pkg/config"
 )
 
-func IsAuthEnabled() bool {
-	return config.Cfg != nil && len(config.Cfg.GetAPITokens()) > 0
+// TrimUserName normalises an API token to the user identity it stands for. E2B SDKs >= 2.27
+// force an "e2b_" prefix on keys, so "e2b_X" and "X" are the same user (see IsTokenAllowed).
+// Compare tokens for identity through this function, never as raw strings.
+func TrimUserName(token string) string {
+	return strings.TrimPrefix(token, "e2b_")
+}
+
+// IsAdmin reports whether token is the configured system (admin) token. An exact match is
+// required: other tokens that merely start with "sys-" are ordinary users. All admin checks
+// go through this function so the rule lives in one place.
+func IsAdmin(token string) bool {
+	sys := config.Cfg.GetSystemToken()
+	return sys != "" && TrimUserName(token) == TrimUserName(sys)
 }
 
 func ExtractToken(r *http.Request) string {
@@ -21,9 +32,6 @@ func ExtractToken(r *http.Request) string {
 }
 
 func IsTokenAllowed(token string) bool {
-	if !IsAuthEnabled() {
-		return true
-	}
 	if token == "" {
 		return false
 	}
@@ -34,14 +42,7 @@ func IsTokenAllowed(token string) bool {
 		//client: e2b_000000000000000000, server: e2b_000000000000000000
 		//client: e2b_000000000000000000, server: 000000000000000000
 		//client: 000000000000000000, server: 000000000000000000
-		if strings.HasPrefix(token, "e2b_") {
-			token = strings.TrimPrefix(token, "e2b_")
-		}
-		if strings.HasPrefix(allowed, "e2b_") {
-			allowed = strings.TrimPrefix(allowed, "e2b_")
-		}
-
-		if token == allowed {
+		if TrimUserName(token) == TrimUserName(allowed) {
 			return true
 		}
 	}

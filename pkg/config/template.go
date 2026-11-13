@@ -17,7 +17,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -101,31 +100,4 @@ func GetTemplateByName(name string) (*Template, error) {
 
 	klog.Errorf("Template %s not found", name)
 	return nil, fmt.Errorf("Template  %s not found", name)
-}
-
-// GetTemplatesForMCPTools return json string, but exclude image field
-func GetTemplatesForMCPTools() string {
-	type TplForTool struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-	}
-
-	var tpls []TplForTool
-	for _, env := range Templates {
-		if env.Type == "dynamic" {
-			continue
-		}
-		tpls = append(tpls, TplForTool{
-			Name:        env.Name,
-			Description: env.Description,
-		})
-	}
-
-	tplsJson, err := json.MarshalIndent(tpls, "", "  ")
-	if err != nil {
-		klog.Errorf("Failed to marshal Templates for MCP tools: %v", err)
-		return ""
-	}
-
-	return string(tplsJson)
 }

@@ -42,6 +42,10 @@ func (a *Handler) executorHandler(ctx context.Context, req *mcp.CallToolRequest,
 	if tool.ToolName == "" {
 		return nil, nil, fmt.Errorf("tool_name is required")
 	}
+	// Running a tool executes code inside the sandbox; only its owner (or admin) may do so.
+	if _, err := a.getOwnedSandbox(ctx, tool.SandboxName); err != nil {
+		return nil, nil, err
+	}
 
 	session, err := a.acquireClientSession(ctx, tool.SandboxName)
 	if err != nil {
