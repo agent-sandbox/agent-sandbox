@@ -385,8 +385,6 @@ func (a *Handler) GetRateLimitStatus(r *http.Request) (interface{}, error) {
 	if caller == "" {
 		return nil, fmt.Errorf("user not found, api key may be invalid")
 	}
-	// Keys are raw API tokens; only the system token may see them unmasked.
-	isAdmin := auth.IsAdmin(caller)
 
 	if capacity.GlobalLimiter == nil {
 		return AllRateLimitStatus{
@@ -433,9 +431,7 @@ func (a *Handler) GetRateLimitStatus(r *http.Request) (interface{}, error) {
 		active, maxConcurrency := capacity.GlobalLimiter.ConcurrencyStats(u)
 		_, maxSandbox := capacity.GlobalLimiter.UserConfig(u)
 		row := buildRateLimitStatus(u, true, active, maxConcurrency, counts[u], maxSandbox)
-		if !isAdmin {
-			row.User = sandbox.MaskUserKey(row.User)
-		}
+		row.User = sandbox.MaskUserKey(row.User)
 		result.Users = append(result.Users, row)
 	}
 
