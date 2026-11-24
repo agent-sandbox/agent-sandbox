@@ -75,15 +75,23 @@ func AcquireDest(rootCtx context.Context, name string, port string) (*url.URL, e
 	return targetURL, nil
 }
 
+// newestPod returns the sandbox's newest pod if it is ready to serve, else nil.
+// Terminated pods (phase Failed or Succeeded) are never picked: a pod the kubelet
+// rejects at admission (e.g. UnexpectedAdmissionError while a device plugin
+// restarts) stays Failed next to the replacement its ReplicaSet creates, often
+// in the same second, and would otherwise hide the running pod.
 func newestPod(pods []*v1.Pod) *v1.Pod {
-	newest := pods[0]
-	for _, pod := range pods[1:] {
-		if pod.CreationTimestamp.After(newest.CreationTimestamp.Time) ||
+	var newest *v1.Pod
+	for _, pod := range pods {
+		if pod.Status.Phase == v1.PodFailed || pod.Status.Phase == v1.PodSucceeded {
+			continue
+		}
+		if newest == nil || pod.CreationTimestamp.After(newest.CreationTimestamp.Time) ||
 			(pod.CreationTimestamp.Equal(&newest.CreationTimestamp) && pod.Name > newest.Name) {
 			newest = pod
 		}
 	}
-	if newest.DeletionTimestamp != nil {
+	if newest == nil || newest.DeletionTimestamp != nil {
 		return nil
 	}
 	if !isPodReady(newest) {
