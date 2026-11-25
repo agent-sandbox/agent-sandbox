@@ -35,17 +35,6 @@ import (
 	"k8s.io/klog/v2"
 )
 
-const (
-	defaultEnvdPort = "49983"
-
-	// envd may start after the pod is Ready: the startupProbe checks the template port,
-	// and fast-startup templates have no probe at all. Restore retries its first envd call
-	// until envd answers or envdReadyTimeout elapses.
-	envdReadyTimeout   = 30 * time.Second
-	envdRetryInterval  = 500 * time.Millisecond
-	envdRequestTimeout = 5 * time.Second
-)
-
 type processSnapshotPayload struct {
 	CapturedTime time.Time            `json:"captured_time"`
 	Processes    []e2bapi.ProcessInfo `json:"processes"`
@@ -186,17 +175,17 @@ func (s *Controller) restoreProcessSnapshot(sb *Sandbox, snapshot string) (resto
 }
 
 // waitEnvdAndListProcesses lists envd's running processes, retrying until envd answers or
-// envdReadyTimeout elapses. The list doubles as the readiness check, so no health endpoint is needed.
+// envdTimeout elapses. The list doubles as the readiness check, so no health endpoint is needed.
 func waitEnvdAndListProcesses(dest *url.URL, token string) ([]e2bapi.ProcessInfo, error) {
 	payload, _ := json.Marshal(e2bapi.ListRequest{})
 	var running []e2bapi.ProcessInfo
 	var lastErr error
-	err := wait.PollUntilContextTimeout(context.Background(), envdRetryInterval, envdReadyTimeout, true, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(context.Background(), envdRetryInterval, envdTimeout, true, func(ctx context.Context) (bool, error) {
 		running, lastErr = listEnvdProcessesAt(dest, token, payload)
 		return lastErr == nil, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("envd not ready within %v: %v", envdReadyTimeout, lastErr)
+		return nil, fmt.Errorf("envd not ready within %v: %v", envdTimeout, lastErr)
 	}
 	return running, nil
 }

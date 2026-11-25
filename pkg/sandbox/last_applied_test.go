@@ -6,6 +6,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 )
 
 func rsWithConfig(sandboxData, lastApplied string) *appsv1.ReplicaSet {
@@ -150,9 +151,10 @@ func TestJSONEqual(t *testing.T) {
 	}
 }
 
-// System changes never touch the configuration annotations: here, recording a resume status.
+// System changes never touch the configuration annotations: here, pausing the sandbox.
 func TestSystemChangeKeepsConfiguration(t *testing.T) {
 	e := setupFakeEnv(t)
+	e.c.recorder = record.NewFakeRecorder(10)
 	rs := newLabeledRS("sb-1", "user-a", map[string]string{"team": "a"})
 	rs.Annotations[AnnotationLastAppliedConfiguration] = `{"name":"sb-1"}`
 	e.addRS(t, rs)
@@ -160,10 +162,12 @@ func TestSystemChangeKeepsConfiguration(t *testing.T) {
 
 	sb := &Sandbox{ReplicaSet: rs.DeepCopy()}
 	sb.Name = "sb-1"
-	e.c.patchResumeStatus(sb, ResumeStatus{PodReady: true})
+	if err := e.c.setPaused(sb, true, "api", ""); err != nil {
+		t.Fatal(err)
+	}
 
 	got := e.getRS(t, "sb-1")
-	if got.Annotations[AnnotationResumeStatus] == "" {
+	if got.Annotations[AnnotationPaused] != "true" {
 		t.Fatal("system change not applied")
 	}
 	if got.Annotations[AnnotationSandboxData] != data || got.Annotations[AnnotationLastAppliedConfiguration] != `{"name":"sb-1"}` {

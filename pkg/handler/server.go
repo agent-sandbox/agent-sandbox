@@ -34,6 +34,8 @@ type ApiHttpHandler struct {
 	rootCtx    context.Context
 	activator  *activator.Activator
 	controller *sandbox.Controller
+	// sandboxHostHandler proxies requests for sandbox hosts ({port}-{id}.{domain})
+	sandboxHostHandler http.Handler
 }
 
 func New(rootCtx context.Context, a *activator.Activator, c *sandbox.Controller) *http.Server {
@@ -47,9 +49,10 @@ func New(rootCtx context.Context, a *activator.Activator, c *sandbox.Controller)
 	}
 	ah.regHandlers()
 
-	// Wrap mux with api key auth middleware and global logging middleware
+	// logging -> sandbox host dispatch -> API key auth -> mux
 	authMux := ApiKeyAuthMiddleware(mux)
-	loggedMux := LoggingMiddleware(authMux)
+	dispatched := HostDispatchMiddleware(ah.sandboxHostHandler, authMux)
+	loggedMux := LoggingMiddleware(dispatched)
 
 	server := &http.Server{
 		Addr:    config.Cfg.ServerAddr,
@@ -147,8 +150,7 @@ func (ahh *ApiHttpHandler) regHandlers() {
 
 	// e2b data-plane sandbox access endpoint
 	ahh.mux.HandleFunc("/sandboxes/router/{sandboxID}/{port}/", e2bHeader.SandboxRouterOfPath())
-	// catch-all handler for any unmatched requests, mainly for E2B sandbox proxy by host ({port}-{sandbox_id}.{domain})
-	ahh.mux.HandleFunc("/", e2bHeader.SandboxRouterOfDomain())
+	ahh.sandboxHostHandler = e2bHeader.SandboxRouterOfDomain()
 }
 
 func wrapperHandler(w http.ResponseWriter, r *http.Request, f func(*http.Request) (interface{}, error)) {

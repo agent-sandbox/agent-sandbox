@@ -32,10 +32,13 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// envdInitTimeout bounds how long create and resume wait for envd to accept /init.
-// It is short on purpose: init is best effort and must not noticeably delay
-// sandboxes whose image does not run envd.
-const envdInitTimeout = 5 * time.Second
+const (
+	defaultEnvdPort = "49983"
+
+	envdRetryInterval  = 200 * time.Millisecond
+	envdRequestTimeout = 2 * time.Second
+	envdTimeout        = 10 * time.Second
+)
 
 // errEnvdTokenConflict means envd already holds a different access token, which
 // retrying cannot fix.
@@ -62,8 +65,7 @@ func envdAccessToken(sb *Sandbox) string {
 // and after resume. /init is idempotent for the same token, so concurrent
 // callers are safe.
 //
-// Callers treat a failure as a warning only: images without envd, or an envd
-// that starts late, keep the previous behavior instead of failing the sandbox.
+// It is mandatory: without it nothing works in the sandbox, so a failure fails create and resume.
 func (s *Controller) initEnvd(sb *Sandbox) error {
 	dest, err := router.AcquireDest(s.rootCtx, sb.Name, defaultEnvdPort)
 	if err != nil {
@@ -79,7 +81,7 @@ func (s *Controller) initEnvd(sb *Sandbox) error {
 	// envd may start after the pod is Ready, so retry until it answers.
 	start := time.Now()
 	var lastErr error
-	err = wait.PollUntilContextTimeout(context.Background(), envdRetryInterval, envdInitTimeout, true, func(ctx context.Context) (bool, error) {
+	err = wait.PollUntilContextTimeout(context.Background(), envdRetryInterval, envdTimeout, true, func(ctx context.Context) (bool, error) {
 		lastErr = postEnvdInit(dest, token, payload)
 		if errors.Is(lastErr, errEnvdTokenConflict) {
 			return false, lastErr
@@ -87,10 +89,11 @@ func (s *Controller) initEnvd(sb *Sandbox) error {
 		return lastErr == nil, nil
 	})
 	if err != nil {
-		if errors.Is(lastErr, errEnvdTokenConflict) {
-			return lastErr
+		if errors.Is(err, errEnvdTokenConflict) { // returned as is by the condition
+			return err
 		}
-		return fmt.Errorf("envd not initialized within %v: %v", envdInitTimeout, lastErr)
+		// otherwise err is only the deadline; the last attempt tells why
+		return fmt.Errorf("envd not initialized within %v: %v", envdTimeout, lastErr)
 	}
 
 	// Env var values may hold secrets; log the count only.

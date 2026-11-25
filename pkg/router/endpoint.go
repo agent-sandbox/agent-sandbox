@@ -35,33 +35,39 @@ func AcquireDest(rootCtx context.Context, name string, port string) (*url.URL, e
 
 	destIP := ""
 	var destPod *v1.Pod
-	var pods []*v1.Pod
-	var err error
+	// lastErr is why the latest poll found no destination; a non-nil condition error would end
+	// the poll at once, so not-ready states return (false, nil) and keep waiting.
+	var lastErr error
 
-	// Wait for pods to be ready avoid faster than rs creation and caching issue
+	// Wait for a ready pod: requests may arrive before the pod is created, ready, or in the cache.
 	if perr := wait.PollUntilContextTimeout(context.TODO(), 300*time.Millisecond, 10*time.Second, true, func(ctx context.Context) (bool, error) {
-		pods, err = podclient.Get(rootCtx).Lister().Pods(config.Cfg.SandboxNamespace).List(selector)
+		pods, err := podclient.Get(rootCtx).Lister().Pods(config.Cfg.SandboxNamespace).List(selector)
 		if err != nil {
 			return false, err
 		}
 		if len(pods) == 0 {
-			return false, fmt.Errorf("pod not found")
+			lastErr = fmt.Errorf("pod not found")
+			return false, nil
 		}
 
 		// pick the newest pod, stale informer cache may still hold deleted ones
 		destPod = newestPod(pods)
 		if destPod == nil {
-			return false, fmt.Errorf("no active pod found")
+			lastErr = fmt.Errorf("no active pod found")
+			return false, nil
 		}
 
-		// wait for pod to be got ip
 		destIP = destPod.Status.PodIP
 		if destIP == "" {
-			return false, fmt.Errorf("sandbox pod IP not found")
+			lastErr = fmt.Errorf("sandbox pod IP not found")
+			return false, nil
 		}
 
 		return true, nil
 	}); perr != nil {
+		if lastErr != nil {
+			perr = fmt.Errorf("%w: %v", perr, lastErr)
+		}
 		return nil, fmt.Errorf("timeout waiting for get pods for sandbox %v error: %v", name, perr)
 	}
 

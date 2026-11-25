@@ -47,15 +47,15 @@ const (
 )
 
 const (
-	AnnotationSandboxData     = "sandbox-data"
-	AnnotationPaused          = "agent-sandbox.github.io/paused"
-	AnnotationPausedAt        = "agent-sandbox.github.io/paused-at"
-	AnnotationPauseReason     = "agent-sandbox.github.io/pause-reason"
-	AnnotationResumedAt       = "agent-sandbox.github.io/resumed-at"
-	AnnotationResumeReason    = "agent-sandbox.github.io/resume-reason"
+	AnnotationSandboxData  = "sandbox-data"
+	AnnotationPaused       = "agent-sandbox.github.io/paused"
+	AnnotationPausedAt     = "agent-sandbox.github.io/paused-at"
+	AnnotationPauseReason  = "agent-sandbox.github.io/pause-reason"
+	AnnotationResumedAt    = "agent-sandbox.github.io/resumed-at"
+	AnnotationResumeReason = "agent-sandbox.github.io/resume-reason"
+	// AnnotationResumeStatus holds the JSON ResumeStatus of the latest resume.
+	AnnotationResumeStatus    = "agent-sandbox.github.io/resume-status"
 	AnnotationProcessSnapshot = "agent-sandbox.github.io/process-snapshot"
-	// AnnotationResumeStatus holds the JSON ResumeStatus of the latest resume; cleared on pause.
-	AnnotationResumeStatus = "agent-sandbox.github.io/resume-status"
 	// AnnotationLastAppliedConfiguration holds the previous sandbox configuration: the sandbox-data value
 	// before the latest user update. sandbox-data always holds the latest one.
 	AnnotationLastAppliedConfiguration = "agent-sandbox.github.io/last-applied-configuration"
@@ -181,7 +181,7 @@ const (
 )
 
 // String for logs, keeps the user's API key and env var values out of %v output,
-//e.g. the "Create sandbox opts" logs. The ReplicaSet is left out: its sandbox-data
+// e.g. the "Create sandbox opts" logs. The ReplicaSet is left out: its sandbox-data
 // annotation and container env hold the same values unredacted.
 func (sb *Sandbox) String() string {
 	if sb == nil {
@@ -327,6 +327,12 @@ func (sb *Sandbox) Make() error {
 		if defImg != "" && defTpl == "" {
 			sb.Image = defImg
 		}
+	}
+
+	// Fail fast when both defaults are configured empty; otherwise an image-less
+	// ReplicaSet would only be rejected later by Kubernetes.
+	if sb.Template == "" && sb.Image == "" {
+		return fmt.Errorf("template or image is required: no default template or image is configured")
 	}
 
 	if sb.Template != "" {

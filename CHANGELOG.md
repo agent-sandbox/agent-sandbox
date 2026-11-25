@@ -112,3 +112,13 @@ V0.8.7 - 2026-11-17
 - Improve: snapshot restore is idempotent and skips processes that are already running.
 - Improve: E2B API 401 responses use the E2B error format.
 --------------------------
+V0.8.8 - 2026-11-19
+- Fix: requests to sandbox hosts (`{port}-{id}.{domain}`) are proxied to the sandbox for every path; platform routes such as `/api/v1/...`, `/ui/`, `/mcp`, `/e2b/v1/...` and `/healthz` no longer shadow the sandbox's own paths.
+- Fix: proxied sandbox requests wait up to 10s for a ready pod as intended; they used to fail with 502 at the first check when the pod was not created, ready or cached yet (e.g. right after create).
+- Improve: pause, resume, pod label sync and active lease renew use merge patches instead of full updates, avoiding conflict retries.
+- Improve: while a sandbox is resuming, other resumes, E2B `connect` and proxied sandbox requests wait for it to finish and get its result, instead of reaching a pod whose envd is not initialized or whose processes are not restored yet. The scaler pauses a sandbox whose resume never finished (e.g. the controller restarted mid-resume) with pause reason `resume_timeout`.
+- Change: envd init is mandatory: create and resume fail when envd does not accept `/init` within 10s, so images must run envd on port `49983`.
+- Change: any resume failure (pod not ready, envd init, process snapshot restore) pauses the sandbox again with pause reason `resume_failed`, so the next resume retries from scratch.
+- Change: `resumeStatus` in metadata carries `state` (`resuming`/`succeeded`/`failed`) and `envdInitialized`.
+- Change: create fails with "template or image is required" when neither is given and both `SANDBOX_DEFAULT_TEMPLATE` and `SANDBOX_DEFAULT_IMAGE` are empty.
+--------------------------

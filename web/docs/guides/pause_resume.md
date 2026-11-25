@@ -30,11 +30,16 @@ Resuming a sandbox:
 
 1. Scales the `ReplicaSet` back to `1` replica and waits for the new Pod to
    become ready.
-2. If a snapshot exists, waits for `envd` to answer (retrying its process
-   list for up to 30s), then restarts each snapshotted process with the same
+2. Initializes `envd` with the sandbox access token and env vars, retrying
+   for up to 10s while it starts.
+3. If a snapshot exists, restarts each snapshotted process with the same
    command, arguments and working directory. Processes that are already running
    (matched by tag or command line) are skipped, so a repeated restore does
    not start duplicates.
+
+While a resume is in progress, other resume calls, E2B `connect` and requests
+proxied to the sandbox wait for it to finish (up to the resume timeout), then
+get its result.
 
 !!! warning "Snapshots are no longer taken on pause"
     Earlier versions captured the process list automatically on every pause.
@@ -94,7 +99,7 @@ sequenceDiagram
     Client->>Controller: new request
     Controller->>Controller: status == paused && autoResume == true
     Controller->>Pod: scale replicas to 1, wait ready
-    Controller->>Pod: wait for envd to answer (up to 30s)
+    Controller->>Pod: initialize envd (up to 10s)
     Controller->>Pod: restart snapshotted processes not already running
     Controller-->>Client: request proxied through
 ```
@@ -196,40 +201,39 @@ until you call `create_snapshot()` or `delete_snapshot()` again.
 
 ## Checking the resume result
 
+A failed resume fails the call that triggered it: `Sandbox.connect()` raises,
+and a request that auto-resumed the sandbox gets HTTP 424 with the error.
+Any failed resume — the pod never became ready, envd init failed, or a
+snapshotted process could not be restarted — also pauses the sandbox again
+(pause reason `resume_failed`), so the next connect or request retries it
+from scratch.
+
 Every sandbox read (`get_info()`, `Sandbox.connect()`, `GET /api/v1/sandbox/<name>`)
 returns the latest resume in its metadata:
 
 | Key | Description |
 |-----|-------------|
-| `resumeStatus` | JSON with `podReady`, `snapshotRestored`, the restore counts (`total`, `started`, `skipped`), `error` and `updatedAt`. |
+| `resumeStatus` | JSON with `state` (`resuming`, `succeeded` or `failed`), the steps done (`podReady`, `envdInitialized`, `snapshotRestored`), the restore counts (`total`, `started`, `skipped`), `error` and `updatedAt`. |
 | `resumedAt` | Time of the latest resume (RFC 3339). |
 | `resumeReason` | What triggered it, e.g. `api`, `SDKGetSandbox`, or a proxied request. |
 
-The resume fully succeeded when `podReady` and `snapshotRestored` are both
-`true`. `snapshotRestored` is also `true` when there was no snapshot to restore
-(`total` is `0`). While it is `false`, a non-empty `error` means the resume
-failed — the pod never became ready, or a process could not be restarted —
-and an empty `error` means it is still in progress. `resumeStatus` is cleared
-when the sandbox is paused again.
+`snapshotRestored` is also `true` when there was no snapshot to restore
+(`total` is `0`). When several requests resume the same paused sandbox at
+once, only one resumes it; the others wait for that resume and return its
+result.
 
-```python
-import json
-
-info = Sandbox.connect(sbx.sandbox_id).get_info()
-status = json.loads(info.metadata.get("resumeStatus", "{}"))
-if status and not (status["podReady"] and status["snapshotRestored"]):
-    print("resume incomplete:", status.get("error"))
-```
-
-The same result is recorded as Kubernetes events on the sandbox:
-`SandboxSnapshotRestored` reports how many processes were started and how
-many were skipped because they were already running;
-`SandboxSnapshotRestoreFailed` names the process that failed and why.
+The details of each resume are recorded as Kubernetes events on the sandbox
+(`GET /api/v1/events`): `SandboxResume` marks a successful resume and
+`SandboxResumeFailed` gives the failed stage and error; `SandboxSnapshotRestored` reports how
+many processes were started and how many were skipped because they were
+already running; `SandboxSnapshotRestoreFailed` names the process that failed
+and why. The same results are in the controller telemetry logs
+(`sandbox.resume`).
 
 !!! note "`metadata['resumed']` was removed"
     Earlier versions set `metadata["resumed"] = "true"` only on the response
-    that triggered an automatic resume. Use `resumedAt` or `resumeStatus`
-    instead; they are returned on every read.
+    that triggered an automatic resume. Use `resumedAt` instead; it is
+    returned on every read.
 
 To manage the same sandbox by hand instead, use the native REST API:
 

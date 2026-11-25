@@ -56,6 +56,21 @@ func (a *Handler) getOwnedSandbox(w http.ResponseWriter, r *http.Request, sandbo
 	return sb
 }
 
+// rejectNotReady writes an error for a sandbox in a state the e2b SDK cannot represent
+// (anything but running/paused, e.g. creating) and returns true. The message carries pod
+// status and events so the caller can see why the sandbox is stuck.
+func (a *Handler) rejectNotReady(w http.ResponseWriter, sandboxID string, sb *sandbox.Sandbox) bool {
+	if sb.Status == "" || api.SandboxState(sb.Status).Valid() {
+		return false
+	}
+	msg := fmt.Sprintf("sandbox %s is not ready, state: %s", sandboxID, sb.Status)
+	if diag := a.controller.DiagnoseSandbox(sb.Name); diag != "" {
+		msg += "; diagnostics: " + diag
+	}
+	sendAPIError(w, http.StatusConflict, msg)
+	return true
+}
+
 func (a *Handler) GetSandbox(w http.ResponseWriter, r *http.Request) {
 	sandboxID := r.PathValue("sandboxID")
 	if sandboxID == "" {
@@ -66,7 +81,7 @@ func (a *Handler) GetSandbox(w http.ResponseWriter, r *http.Request) {
 	klog.V(2).Infof("Get sandbox sandboxID=%s", sandboxID)
 
 	sb := a.getOwnedSandbox(w, r, sandboxID)
-	if sb == nil {
+	if sb == nil || a.rejectNotReady(w, sandboxID, sb) {
 		return
 	}
 
@@ -126,6 +141,12 @@ func (a *Handler) ListSandboxes(w http.ResponseWriter, r *http.Request) {
 	var apiSandboxes = []*api.Sandbox{}
 	for _, sb := range sbs {
 		apiSbx := a.convertToE2BSandbox(sb)
+		// Like the official e2b API, list only running/paused sandboxes: the SDK enum has no
+		// other state and fails to parse the whole page on e.g. "creating".
+		if !apiSbx.State.Valid() {
+			klog.Warningf("sandbox %s is not ready and skip return to e2b list api", sb.Name)
+			continue
+		}
 		apiSandboxes = append(apiSandboxes, apiSbx)
 	}
 
@@ -373,7 +394,8 @@ func (a *Handler) ConnectSandbox(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if sb.Status == sandbox.Paused && sb.AutoResume {
+	// before rejectNotReady: a sandbox being resumed is "creating" until its pod is ready
+	if needsResume(sb) {
 		err := a.controller.Resume(sb, "SDKGetSandbox")
 		if err != nil {
 			klog.Errorf("Failed to resume sandbox %s: %v", sb.Name, err)
@@ -383,11 +405,21 @@ func (a *Handler) ConnectSandbox(w http.ResponseWriter, r *http.Request) {
 		// metadata was read before the resume; show this resume's result
 		sb.RefreshRuntimeMetadata()
 	}
+	if a.rejectNotReady(w, sandboxID, sb) {
+		return
+	}
 
 	apiSbx := a.convertToE2BSandbox(sb)
 
 	sendAPIOK(w, http.StatusOK, apiSbx)
 	return
+}
+
+// needsResume reports whether a request must go through Resume first: to auto-resume a paused
+// sandbox, or to wait for a resume in progress (the pod may be ready before envd is initialized
+// and the snapshot restored), regardless of AutoResume.
+func needsResume(sb *sandbox.Sandbox) bool {
+	return sb.Status == sandbox.Paused && sb.AutoResume || sb.Resuming()
 }
 
 func (a *Handler) SandboxRouterOfPath() http.HandlerFunc {
@@ -418,7 +450,7 @@ func (a *Handler) SandboxRouterOfPath() http.HandlerFunc {
 		}
 		sbName := sb.Name
 
-		if sb.Status == sandbox.Paused && sb.AutoResume {
+		if needsResume(sb) {
 			err = a.controller.Resume(sb, "RequestOfPath")
 			if err != nil {
 				klog.Errorf("Failed to resume sandbox %s: %v", sb.Name, err)
@@ -454,7 +486,7 @@ func (a *Handler) SandboxRouterOfDomain() http.HandlerFunc {
 		}
 		sbName := sb.Name
 
-		if sb.Status == sandbox.Paused && sb.AutoResume {
+		if needsResume(sb) {
 			err = a.controller.Resume(sb, "Request")
 			if err != nil {
 				klog.Errorf("Failed to resume sandbox %s: %v", sb.Name, err)

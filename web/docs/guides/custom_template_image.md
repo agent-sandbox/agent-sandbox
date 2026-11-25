@@ -15,9 +15,12 @@ become a template, as long as it satisfies one requirement.
 sandbox. It's what makes `commands.run(...)`, file upload/download, the
 in-browser terminal, and process snapshotting (used by Pause/Resume) work —
 and the Agent-Sandbox controller
-itself calls into it directly (on its fixed port, `49983`) to snapshot a
-sandbox's running processes before a pause. Without `envd` running, a
-sandbox isn't an Agent-Sandbox sandbox — it's just a container.
+itself calls into it directly (on its fixed port, `49983`) to initialize it
+on create and resume, and to snapshot and restore a sandbox's running
+processes. envd init is mandatory: if `envd` does not answer on `49983`
+within 10s of the pod becoming ready, the create or resume fails. Without
+`envd` running, a sandbox isn't an Agent-Sandbox sandbox — it's just a
+container.
 
 If your workload doesn't need `run_code` (see below), `envd` is genuinely
 all you need. [`templates/sandbox-base`](https://github.com/agent-sandbox/agent-sandbox/tree/main/templates/sandbox-base)

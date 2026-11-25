@@ -160,13 +160,7 @@ func deriveSandboxStatus(rs *v1.ReplicaSet) SandboxState {
 	if rs.Spec.Replicas != nil {
 		replicas = *rs.Spec.Replicas
 	}
-	if rs.Annotations[AnnotationPaused] == "true" && replicas == 0 {
-		return Paused
-	}
-	// Support resume without pause,
-	// in case the sandbox pod is deleted by some accident operation e.g. eviction,
-	// and user want to resume  by before call Sandbox Snapshot.
-	if rs.Annotations[AnnotationProcessSnapshot] != "" && replicas == 0 {
+	if rs.Annotations[AnnotationPaused] == "true" {
 		return Paused
 	}
 	if replicas > 0 && replicas == rs.Status.ReadyReplicas {
@@ -254,6 +248,7 @@ var CreateRetry = wait.Backoff{
 	Jitter:   1.0,
 }
 
+// Create creates the sandbox and waits until it is ready, including envd init.
 func (s *Controller) Create(sb *Sandbox) (*Sandbox, error) {
 	var err error
 
@@ -301,15 +296,20 @@ func (s *Controller) Create(sb *Sandbox) (*Sandbox, error) {
 	}
 
 	if err != nil {
-		errMsg := fmt.Errorf("timeout waiting for sandbox to be ready, please get it leater or check sandbox status, error: %v", err)
+		// Attach pod status and RS/Pod events so callers see the root cause (e.g. Unschedulable, ImagePullBackOff).
+		errMsg := fmt.Errorf("timeout waiting for sandbox %s ready! error: %v", sb.Name, err)
+		if diag := s.DiagnoseSandbox(sb.Name); diag != "" {
+			errMsg = fmt.Errorf("%w; diagnostics: %s", errMsg, diag)
+		}
 		klog.Error(errMsg)
 		return sb, errMsg
 	}
 
-	// Best effort: set envd's access token and the sandbox env vars. A failure
-	// (e.g. the image runs no envd) keeps the previous behavior.
-	if initErr := s.initEnvd(sb); initErr != nil {
-		klog.Warningf("Skipped envd init of sandbox %s: %v", sb.Name, initErr)
+	// mandatory; on failure the ReplicaSet is kept for troubleshooting
+	if err = s.initEnvd(sb); err != nil {
+		err = fmt.Errorf("envd init: %w", err)
+		klog.Errorf("Failed to create sandbox %s: %v", sb.Name, err)
+		return sb, err
 	}
 
 	sb.Status = Running

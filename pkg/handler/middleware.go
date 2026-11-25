@@ -99,6 +99,19 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// HostDispatchMiddleware sends sandbox hosts ({port}-{id}.{domain}) to sandboxHost before path
+// routing and API key auth, so platform routes (/api/v1/..., /mcp, /healthz, ...) don't shadow
+// the sandbox's own paths. Other hosts go to next.
+func HostDispatchMiddleware(sandboxHost http.Handler, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, _, ok := e2bapi.ParseSandboxHost(r.Host); ok {
+			sandboxHost.ServeHTTP(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func ApiKeyAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !shouldProtectAPIRequest(r) {

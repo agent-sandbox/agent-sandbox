@@ -18,6 +18,7 @@ package activator
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
@@ -100,11 +102,14 @@ func (a *Activator) renewActiveLease(name string, now time.Time) {
 	renewTime := metav1.NewMicroTime(now)
 	leases := kubeclient.Get(a.rootCtx).CoordinationV1().Leases(ns)
 
+	// renewTime is a plain timestamp: merge patch it (last write wins), no optimistic lock needed.
+	patch, _ := json.Marshal(map[string]any{"spec": map[string]any{"renewTime": renewTime}})
 	err := retry.OnError(retry.DefaultRetry, func(err error) bool {
-		return apierrors.IsConflict(err) || apierrors.IsAlreadyExists(err)
+		// another renewer created the lease first: patch it on the next attempt
+		return apierrors.IsAlreadyExists(err)
 	}, func() error {
-		lease, getErr := leases.Get(a.rootCtx, name, metav1.GetOptions{})
-		if apierrors.IsNotFound(getErr) {
+		_, patchErr := leases.Patch(a.rootCtx, name, types.MergePatchType, patch, metav1.PatchOptions{})
+		if apierrors.IsNotFound(patchErr) {
 			rs, rsErr := rsclient.Get(a.rootCtx).Lister().ReplicaSets(ns).Get(name)
 			if rsErr != nil {
 				return rsErr
@@ -125,12 +130,7 @@ func (a *Activator) renewActiveLease(name string, now time.Time) {
 			_, createErr := leases.Create(a.rootCtx, newLease, metav1.CreateOptions{})
 			return createErr
 		}
-		if getErr != nil {
-			return getErr
-		}
-		lease.Spec.RenewTime = &renewTime
-		_, updateErr := leases.Update(a.rootCtx, lease, metav1.UpdateOptions{})
-		return updateErr
+		return patchErr
 	})
 	if err != nil {
 		a.rollbackActiveRecord(name, now)

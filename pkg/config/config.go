@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/kelseyhightower/envconfig"
 	corev1 "k8s.io/api/core/v1"
@@ -80,6 +81,11 @@ type Config struct {
 	SandboxDefaultTemplate     string `split_words:"true" default:"aio" required:"false"`
 
 	ConfigmapName string `split_words:"true" default:"agent-sandbox" required:"false"`
+
+	// Polling interval and overall timeout when waiting for a new sandbox ReplicaSet to be ready.
+	// Go duration strings, e.g. "300ms", "150s", "3m". The timeout should cover node scale-up time.
+	SandboxCreateCheckInterval time.Duration `split_words:"true" default:"300ms" required:"false"`
+	SandboxCreateTimeout       time.Duration `split_words:"true" default:"150s" required:"false"`
 
 	EnvName string `split_words:"true" default:"dev" required:"false"`
 
