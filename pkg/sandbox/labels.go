@@ -28,6 +28,7 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	v1meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
@@ -185,24 +186,48 @@ func syncPodLabels(ctx context.Context, client kubernetes.Interface, sandboxName
 	}
 	for _, pod := range pods {
 		podName := pod.Name
-		if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			latest, getErr := client.CoreV1().Pods(config.Cfg.SandboxNamespace).Get(ctx, podName, v1meta.GetOptions{})
-			if getErr != nil {
-				return getErr
-			}
-			podLabels := latest.GetLabels()
-			if podLabels == nil {
-				podLabels = map[string]string{}
-			}
-			mutate(podLabels)
-			latest.SetLabels(podLabels)
-			_, updateErr := client.CoreV1().Pods(config.Cfg.SandboxNamespace).Update(ctx, latest, v1meta.UpdateOptions{})
-			return updateErr
-		}); err != nil {
-			return fmt.Errorf("failed to update pod %s labels: %w", podName, err)
+		// Pod labels derive from sandbox-data, so no optimistic lock: patch only the changed keys,
+		// diffed against a fresh read (a stale cache could miss a label to remove).
+		latest, err := client.CoreV1().Pods(config.Cfg.SandboxNamespace).Get(ctx, podName, v1meta.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get pod %s: %w", podName, err)
+		}
+		patch := podLabelsPatch(latest.GetLabels(), mutate)
+		if patch == nil {
+			continue
+		}
+		if _, err := client.CoreV1().Pods(config.Cfg.SandboxNamespace).Patch(ctx, podName, types.MergePatchType, patch, v1meta.PatchOptions{}); err != nil {
+			return fmt.Errorf("failed to patch pod %s labels: %w", podName, err)
 		}
 	}
 	return nil
+}
+
+// podLabelsPatch applies mutate to a copy of current and returns a merge patch of the changed
+// labels (removed keys as null), or nil when nothing changed.
+func podLabelsPatch(current map[string]string, mutate func(map[string]string)) []byte {
+	desired := maps.Clone(current)
+	if desired == nil {
+		desired = map[string]string{}
+	}
+	mutate(desired)
+
+	changed := map[string]*string{}
+	for k := range current {
+		if _, ok := desired[k]; !ok {
+			changed[k] = nil
+		}
+	}
+	for k, v := range desired {
+		if old, ok := current[k]; !ok || old != v {
+			changed[k] = &v
+		}
+	}
+	if len(changed) == 0 {
+		return nil
+	}
+	patch, _ := json.Marshal(map[string]any{"metadata": map[string]any{"labels": changed}})
+	return patch
 }
 
 // UpdateUserLabels replaces the user labels of the sandbox (full replace, last write wins).

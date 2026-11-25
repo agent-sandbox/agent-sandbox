@@ -331,6 +331,9 @@ If `templateID` is not set but `image` is provided:
 image=ghcr.io/my-org/my-image:latest → template name becomes "custom"
 ```
 
+The image must run `envd` on port `49983`: create fails when envd init fails.
+See [Custom Template Image](guides/custom_template_image.md).
+
 ### 4. Default
 
 If neither `templateID` nor `image` is set:
@@ -338,6 +341,8 @@ If neither `templateID` nor `image` is set:
 ```
 → use SANDBOX_DEFAULT_TEMPLATE and SANDBOX_DEFAULT_IMAGE from environment
 ```
+
+Either default may be set to an empty string. If both are empty, the request is rejected with "template or image is required".
 
 ---
 

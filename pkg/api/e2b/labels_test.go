@@ -178,10 +178,16 @@ func labeledRS(name, user string, meta map[string]string, userLabels map[string]
 	for k, v := range userLabels {
 		l[sandbox.UserLabelPrefix+k] = v
 	}
-	return &appsv1.ReplicaSet{ObjectMeta: metav1.ObjectMeta{
-		Name: name, Namespace: "default", Labels: l,
-		Annotations: map[string]string{sandbox.AnnotationSandboxData: string(data)},
-	}}
+	// A ready replica makes the sandbox "running"; the e2b list hides not-ready sandboxes.
+	replicas := int32(1)
+	return &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name, Namespace: "default", Labels: l,
+			Annotations: map[string]string{sandbox.AnnotationSandboxData: string(data)},
+		},
+		Spec:   appsv1.ReplicaSetSpec{Replicas: &replicas},
+		Status: appsv1.ReplicaSetStatus{ReadyReplicas: 1},
+	}
 }
 
 func doList(t *testing.T, h *Handler, user, metadata string) (int, []*api.Sandbox) {

@@ -249,13 +249,11 @@ def maybe_snapshot(sbx, entry, start_cmd, created):
     entry["start_cmd"] = start_cmd
 ```
 
-To confirm a resume brought the service back, read the sandbox's
-`resumeStatus` — `podReady` and `snapshotRestored` should both be `true`,
-otherwise `error` says what failed:
-
-```python
-status = json.loads(sbx.get_info().metadata.get("resumeStatus", "{}"))
-```
+A failed resume fails the call that triggered it (`Sandbox.connect()`
+raises), so a successful connect means the snapshot was restored. Details of
+each resume, such as how many processes were restarted, are recorded as
+Kubernetes events on the sandbox (`SandboxResume`, `SandboxResumeFailed`,
+`SandboxSnapshotRestored`, `SandboxSnapshotRestoreFailed`).
 
 ### 9. Save deploy state
 

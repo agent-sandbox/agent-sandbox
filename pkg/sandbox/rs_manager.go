@@ -77,9 +77,23 @@ func buildReplicaSet(sb *Sandbox) (*v1.ReplicaSet, error) {
 }
 
 // WaitForReplicaSetReady waits for a ReplicaSet to become ready
+// readyWaitTimings returns the poll interval and timeout of waiting for a sandbox pod to get ready.
+// Configurable via SANDBOX_CREATE_CHECK_INTERVAL / SANDBOX_CREATE_TIMEOUT; the timeout should cover node scale-up (~2m).
+func readyWaitTimings() (interval, timeout time.Duration) {
+	interval, timeout = config.Cfg.SandboxCreateCheckInterval, config.Cfg.SandboxCreateTimeout
+	// Guard against zero/negative values (e.g. "0s"), which would busy-loop or fail immediately.
+	if interval <= 0 {
+		interval = 300 * time.Millisecond
+	}
+	if timeout <= 0 {
+		timeout = 150 * time.Second
+	}
+	return interval, timeout
+}
+
 func (s *Controller) WaitForReplicaSetReady(sb *Sandbox) error {
-	// waiting 3 minutes since Node staring time(2m) when not enough resources.
-	return wait.PollUntilContextTimeout(context.TODO(), 300*time.Millisecond, 3*time.Minute, true, func(ctx context.Context) (bool, error) {
+	interval, timeout := readyWaitTimings()
+	return wait.PollUntilContextTimeout(context.TODO(), interval, timeout, true, func(ctx context.Context) (bool, error) {
 		rsCreated, err := rsclient.Get(s.rootCtx).Lister().ReplicaSets(config.Cfg.SandboxNamespace).Get(sb.Name)
 		if err != nil {
 			if errors.IsNotFound(err) {

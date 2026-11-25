@@ -58,7 +58,7 @@ func NewHandler(rootCtx context.Context, c *sandbox.Controller, a *activator.Act
 
 func GetDefaultE2BSandbox() *api.Sandbox {
 	return &api.Sandbox{
-		EnvdVersion:     "0.1.1",
+		EnvdVersion:     "0.2.10",
 		EnvdAccessToken: "envd-access-token-x",
 		ClientID:        "client-id-x",
 		TemplateID:      "code-interpreter-v1",

@@ -54,6 +54,7 @@ func (s *Scaler) RunScaling() {
 		case <-ticker.C:
 			sbs, err := s.controller.ListAll()
 			if err == nil {
+				s.controller.PauseStuckResumes(sbs)
 				s.ScalingDownOfTimeout(sbs)
 				s.ScalingDownOfIdleTimeout(sbs)
 			} else {

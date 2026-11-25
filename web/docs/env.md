@@ -50,6 +50,8 @@ spec:
 | `SANDBOX_DEFAULT_TEMPLATE` | `aio` | Default template name |
 | `SANDBOX_BLUEPRINT_FILE` | `config/sandbox.yaml` | Bootstrap fallback path for the sandbox Blueprint |
 | `SANDBOX_TEMPLATES_CONFIG_FILE` | `config/templates.json` | Bootstrap fallback path for the Template catalog |
+| `SANDBOX_CREATE_CHECK_INTERVAL` | `300ms` | Poll interval while waiting for a new sandbox to be ready (Go duration) |
+| `SANDBOX_CREATE_TIMEOUT` | `150s` | Max wait for a new sandbox to be ready before create fails with diagnostics (Go duration) |
 | `ENV_NAME` | `dev` | Environment name label |
 | `POOL_ENABLE` | `false` | Enable the Sandbox Pool syncer |
 | `PAUSE_RESUME` | `false` | Enable Pause/Resume lifecycle |
